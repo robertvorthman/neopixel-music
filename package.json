@@ -1,0 +1,19 @@
+{
+  "name": "midi-lights",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "d3": "^4.11.0",
+    "express": "^4.15.2",
+    "midi-player-js": "^1.1.2",
+    "play-sound": "^1.1.1",
+    "rpi-ws281x-native": "^0.8.2",
+    "socket.io": "^2.0.4"
+  }
+}
