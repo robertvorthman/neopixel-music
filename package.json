@@ -9,6 +9,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cron-emitter": "^1.2.2",
+    "cron-parser": "^2.4.3",
     "d3": "^4.11.0",
     "express": "^4.15.2",
     "midi-player-js": "^1.1.2",

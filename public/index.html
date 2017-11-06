@@ -4,12 +4,14 @@
         <style type="text/css">
             body{
                 background-color: #222222;
+                color: white;
+                font-family: sans-serif;
             }
         </style>
         <script src='/socket.io/socket.io.js'></script>
         <script src='d3.js'></script>
         <script>
-        	        
+        	   
             var socket = io();
             
             var pixelData;
@@ -17,6 +19,9 @@
             var pixelSize = 7;
             var pixelPadding = 1
             var pixelTotalSize = pixelSize+pixelPadding;
+            
+            var untilNext;
+            setInterval(tick, 1000);
             
             socket.on('config', function(config){
                 console.log('config', config);
@@ -32,12 +37,12 @@
                 bindPixelData(pixelData);
                 drawPixels();
             });
-            /*
-            socket.on('trackPixelScales', function(data){
-                console.log('trackPixelScales', data);
+            
+            socket.on('untilNext', function(data){
+                console.log('untilNext', untilNext);
+                untilNext = data;
             });
-            */
-                        
+              
         function preparePixelData(numPixels){
 		    var pixelData = [];
             d3.range(numPixels).forEach(function(el) {
@@ -51,7 +56,6 @@
 			//remove canvas if it already exists (like if server restarted while browser was open)
 			d3.select(selector).select('canvas').remove();
 
-		
             var canvas = d3.select(selector)
                 .append('canvas')
                 .attr('width', pixelTotalSize*pixelData.length)
@@ -105,6 +109,24 @@
 				canvasContext.fillRect(node.attr('x'), node.attr('y'), node.attr('width'), node.attr('height'))
 			});
 		}
+
+		function tick(){
+		
+		    if(untilNext && untilNext >= 0){
+                untilNext -= 1000;
+
+                var totalSeconds = untilNext/1000;
+                        
+                var minutes = Math.floor(totalSeconds/60);
+                var seconds = totalSeconds%60;
+                var secondsPadding = '';
+                if(seconds < 10){
+                    secondsPadding = "0";
+                }
+                document.querySelector('#clock').innerHTML = minutes+":"+secondsPadding+seconds;
+            }
+
+		}
 		
 		function decimalToHex(d) {
           var hex = Number(d).toString(16);
@@ -115,6 +137,11 @@
         </script>
     </head>
     <body>
+        <div>
+            <h1>Christmas Lights</h1>
+            <p>Next Routine Starts In</p>
+            <h2 id='clock'></h2>
+        </div>
         <button onclick="socket.emit('play')">Play</button>
         <button onclick="socket.emit('stop')">Stop</button>
         <div id="pixels"></div>
