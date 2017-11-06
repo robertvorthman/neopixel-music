@@ -1,8 +1,7 @@
 var config = {
     port: 3000,
     numPixels: 144,
-    cronSchedule: '*/15 * * * * *',
-    cronName: 'test',
+    cron: '*/15 9-16 * * *',
     audioPath: 'audio/',
     songs: [
         {

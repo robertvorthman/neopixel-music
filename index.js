@@ -67,8 +67,9 @@ loadSong(0, ()=>{
     //web socket events
     io.on('connection', function (socket) {
         console.log('Client Connected');
+        var interval = parser.parseExpression(config.cron);
+        config.nextRuntime = new Date(interval.next());
         socket.emit('config', config);
-        socket.emit('Next Routine Time', interval.next());
         socket.on('play', play);
         socket.on('stop', stop);
     });
@@ -76,25 +77,12 @@ loadSong(0, ()=>{
 });
 
 //cron schedule
-var interval = parser.parseExpression(config.cronSchedule);
 const emitter = new CronEmitter();
-emitter.add(config.cronSchedule, config.cronName);
-emitter.on(config.cronName, () => {
-
-    var untilNext = new Date(interval.next()) - new Date(interval.prev());
-    console.log('untilNext', untilNext);
-    io.emit('untilNext', untilNext);
-/*
-    var next = new Date(interval.next());
-    var now = new Date();
-
-    console.log('fire cron, next:', next, 'now', now);
-    
-  io.emit('scheduling', {
-    sent: now,
-    next: next
-  });
-  */
+emitter.add(config.cron, 'musicTime');
+emitter.on('musicTime', () => {
+    var interval = parser.parseExpression(config.cron);
+    //var untilNext = new Date(interval.next()) - new Date(interval.prev());
+    io.emit('nextRuntime', interval.next());
 });
 
 function playbackReady(){
