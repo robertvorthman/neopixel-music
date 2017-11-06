@@ -61,7 +61,7 @@ var audioPlayer; //audio player
 var midiParser = createMidiParser(); //midi parser
 
 var analyzedMidis = false;
-loadSong(0, ()=>{
+loadSong(config.songs.length-1, ()=>{
     console.log('finished analyzing '+config.songs.length+' songs.');
     
     //web socket events
@@ -97,13 +97,16 @@ function loadSong(songIndex, callback){
         //analyze all midis
         if(!analyzedMidis){
             analyzeMidiTracks(midiParser.tracks, songIndex);
-            if(songIndex < config.songs.length - 1){
-                loadSong(++songIndex);
+            if(songIndex > 0){
+                loadSong(--songIndex);
             }else{
                 analyzedMidis = true;
                 callback && callback();
             }
         }else{
+            
+            console.log('playback ready ', songIndex);
+        
             midiParser.tempo = config.songs[songIndex].midiTempo;
             //console.log('Loaded midi, length: ',midiParser.getSongTime());
             playbackReady();
