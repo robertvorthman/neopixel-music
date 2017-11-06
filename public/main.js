@@ -39,6 +39,9 @@ document.querySelector('#stopButton').addEventListener('click', function(){
 });
 
 function buildPlaylist(songs){
+
+    d3.select('#playlist > ol').remove();
+
     d3.select('#playlist').append('ol').selectAll('li')
         .data(songs)
         .enter()

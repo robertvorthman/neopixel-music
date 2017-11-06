@@ -46,7 +46,7 @@ http.listen(port, function(){
 app.use(express.static(path.join(__dirname, 'public')));
 
 //state
-var currentSong = 0;
+var currentSong = config.songs.length - 1;
 
 //init neopixels
 if(process.arch == 'arm'){
@@ -59,22 +59,10 @@ var trackPixelScales = [];
 
 var audioPlayer; //audio player
 var midiParser = createMidiParser(); //midi parser
+midiParser.on('fileLoaded', loadedSong);
 
 var analyzedMidis = false;
-loadSong(config.songs.length-1, ()=>{
-    console.log('finished analyzing '+config.songs.length+' songs.');
-    
-    //web socket events
-    io.on('connection', function (socket) {
-        console.log('Client Connected');
-        var interval = parser.parseExpression(config.cron);
-        config.nextRuntime = new Date(interval.next());
-        socket.emit('config', config);
-        socket.on('play', play);
-        socket.on('stop', stop);
-    });
-    
-});
+loadSong(); //start loading each song, last to first and store track scale analyses
 
 //cron schedule
 const emitter = new CronEmitter();
@@ -87,33 +75,39 @@ emitter.on('musicTime', () => {
 
 function playbackReady(){
     console.log('Playback ready');
+    //web socket events
+    io.on('connection', function (socket) {
+        console.log('Client Connected');
+        var interval = parser.parseExpression(config.cron);
+        config.nextRuntime = new Date(interval.next());
+        socket.emit('config', config);
+        socket.on('play', play);
+        socket.on('stop', stop);
+    });
 }
 
-function loadSong(songIndex, callback){
+function loadSong(){
 
-    midiParser.on('fileLoaded', (midiParser)=>{
-        console.log('Loaded file', config.songs[songIndex].midiFile, ', Tracks:',midiParser.tracks.length);
-        
-        //analyze all midis
-        if(!analyzedMidis){
-            analyzeMidiTracks(midiParser.tracks, songIndex);
-            if(songIndex > 0){
-                loadSong(--songIndex);
-            }else{
-                analyzedMidis = true;
-                callback && callback();
-            }
+    console.log('loadSong', currentSong);
+    midiParser.loadFile(config.audioPath+config.songs[currentSong].midiFile);
+}
+
+function loadedSong(midiParser){
+    //analyze all midis
+    if(!analyzedMidis){
+        analyzeMidiTracks(midiParser.tracks, currentSong);
+        if(currentSong > 0){
+            //analyze the rest of the songs
+            loadSong(--currentSong);
         }else{
-            
-            console.log('playback ready ', songIndex);
-        
-            midiParser.tempo = config.songs[songIndex].midiTempo;
-            //console.log('Loaded midi, length: ',midiParser.getSongTime());
+            analyzedMidis = true;
+            midiParser.tempo = config.songs[currentSong].midiTempo;
             playbackReady();
         }
-        
-    });
-    midiParser.loadFile(config.audioPath+config.songs[songIndex].midiFile);
+    }else{        
+        midiParser.tempo = config.songs[currentSong].midiTempo;
+        //TODO call some function to indicate finished loading next song so that play() is not called before next song loaded
+    }
 }
 
 // Initialize player and register event handler
