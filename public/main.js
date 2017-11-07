@@ -49,8 +49,8 @@ function buildPlaylist(songs){
         .text(function(d){
             return d.mp3File;
         })
-        .on('click', function(d){
-            console.log('play song ',d);
+        .on('click', function(d, i){
+            socket.emit('setSong', i);
         });
 }
  

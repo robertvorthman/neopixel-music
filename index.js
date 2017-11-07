@@ -83,12 +83,18 @@ function playbackReady(){
         socket.emit('config', config);
         socket.on('play', play);
         socket.on('stop', stop);
+        socket.on('setSong', setSong);
     });
 }
 
-function loadSong(){
+function setSong(index){
+    if(currentSong != index){
+        currentSong = index;
+        loadSong();
+    }
+}
 
-    console.log('loadSong', currentSong);
+function loadSong(){
     midiParser.loadFile(config.audioPath+config.songs[currentSong].midiFile);
 }
 
@@ -96,12 +102,14 @@ function loadedSong(midiParser){
     //analyze all midis
     if(!analyzedMidis){
         analyzeMidiTracks(midiParser.tracks, currentSong);
+        midiParser.tempo = config.songs[currentSong].midiTempo;
+        console.log('Loaded song', currentSong, config.songs[currentSong].midiFile, midiParser.getSongTime());
         if(currentSong > 0){
             //analyze the rest of the songs
             loadSong(--currentSong);
         }else{
             analyzedMidis = true;
-            midiParser.tempo = config.songs[currentSong].midiTempo;
+            
             playbackReady();
         }
     }else{        
@@ -150,6 +158,8 @@ function play(){
     }
     
     setTimeout(function(){
+        midiParser.skipToSeconds(config.songs[currentSong].midiStartAt);
+        midiParser.tempo = config.songs[currentSong].midiTempo;
         midiParser.play();
     }, delay);
     
@@ -199,17 +209,23 @@ function analyzeMidiTracks(tracks, songIndex){
     //map the domain of possible notes to the neopixel segment range
     var rangeIndex = 0;
     trackNotes.forEach((d, i)=>{
+        
+        //create track options object if it does not exist
+        if(i >= config.songs[songIndex].trackOptions.length){
+            config.songs[songIndex].trackOptions[i] = {};
+        }
+        var trackOptions = config.songs[songIndex].trackOptions[i];
+    
         var segmentSize = Math.floor(config.numPixels/d.length);
-        config.songs[songIndex].trackOptions[i].segmentSize = segmentSize;
+        trackOptions.segmentSize = segmentSize;
         var range = d3.range(0, config.numPixels, segmentSize);
-        //console.log(config.trackOptions[i].name, 'segmentSize', segmentSize, 'range', range, 'domain', d);
+        //console.log(trackOptions.name, 'segmentSize', segmentSize, 'range', range, 'domain', d);
         
         //store scale in global
         trackPixelScales[i] = d3.scaleOrdinal(range).domain(d);
-        config.songs[songIndex].trackOptions[i].range = range;
-        config.songs[songIndex].trackOptions[i].domain = d;
-                
-        //todo emit new config to client?
+        trackOptions.range = range;
+        trackOptions.domain = d;
+
         rangeIndex += d.length+1;
     });
         
