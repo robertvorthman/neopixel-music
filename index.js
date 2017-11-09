@@ -124,7 +124,8 @@ function loadSong(){
 function loadedSong(midiParser){
     //analyze midi tracks, recursively load next song in reverse order so first song is ready to play
     if(!analyzedMidis){
-        console.log('Analyze song', currentSong, config.songs[currentSong].midiFile, Math.round(midiParser.getSongTime())+' seconds');        
+        config.songs[currentSong].duration = midiParser.getSongTime();
+        console.log('Analyze song', currentSong, config.songs[currentSong].midiFile, Math.round(config.songs[currentSong].duration)+' seconds');        
         analyzeMidi(midiParser, currentSong);
         if(currentSong > 0){
             //analyze the rest of the songs

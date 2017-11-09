@@ -1,24 +1,59 @@
 <!doctype html>
 <html>
     <head>
+        <title>Christmas Lights</title>
         <style type="text/css">
             body{
                 background-color: #222222;
                 color: white;
                 font-family: sans-serif;
             }
+            
+            h1{
+                font-size: 1.2em;
+                text-align: center;
+            }
+            
+            h2{
+                margin-bottom: 0;
+            }
+            
+            p{
+                margin: 0;
+            }
+            
+            #pixels{
+                height: 20px;
+            }
+            
+            .play-pause-button{
+                cursor: pointer;
+            }
+            
+            text{
+                fill: white;
+            }
+            
+            rect{
+                fill: blue;
+            }
         </style>
     </head>
     <body>
-        <div>
-            <h1>Christmas Lights</h1>
-            <p>Next Routine Starts</p>
-            <h2 id='clock'></h2>
+        <h1>Christmas Lights &#9658;</h1>
+        <div id="pixels"></div>
+        <div id='clock-container'>
+            <p>Next Routine Starts: <span id='clock'></span></p>
         </div>
+        
         <button id='playButton'>Play</button>
         <button id='stopButton'>Stop</button>
-        <div id="pixels"></div>
-        <div id='playlist'></div>
+        
+        <div>
+            <h2>Playlist</h2>
+            <div id='playlist'></div>
+        </div>
+        
         <script src='/socket.io/socket.io.js'></script>
         <script src='bundle.js'></script>
     </body>
