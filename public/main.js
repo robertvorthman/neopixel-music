@@ -43,17 +43,21 @@ document.querySelector('#stopButton').addEventListener('click', function(){
 });
 
 function buildPlaylist(songs){
-
-    //d3.select('#playlist > svg').remove();
     
     var rowHeight = 40;
+    
+    d3.select('#playlist > svg')
+        .attr('height', rowHeight*songs.length)
+        .attr('width', 600);
+    
+    
     
     var listItems = playlist.selectAll('g')
         .data(songs)
         .enter()
         .append('g')
-        .attr('transform', function(d, i) {
-            return "translate(0," + (i+1) * rowHeight + ")";
+        .attr('transform', function(d, i) {        
+            return "translate(0," + (((i+1) * rowHeight) - (rowHeight/2)) + ")";
         });
     
     //play/pause buttons

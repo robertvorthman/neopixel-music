@@ -63,8 +63,15 @@ midiParser.on('playing', (event)=>{
     if(midiParser.getSongPercentRemaining() <= 0){
         console.log('song ended');
         stop();
+    }else{
+        console.log(midiParser.totalTicks, midiParser.isPlaying());
     }
     //TODO attach light fading here
+});
+
+midiParser.on('endOfFile', (event)=>{
+    console.log('endOfFile', event);
+    console.log('midiParser.isPlaying()', midiParser.isPlaying());
 });
 
 
