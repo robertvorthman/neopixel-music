@@ -18,6 +18,7 @@ if(process.arch == 'arm'){
 const CronEmitter = require('cron-emitter');
 var parser = require('cron-parser');
 var d3 = require("d3");
+var d3scaleChromatic = require("d3-scale-chromatic");
 // Setup express server
 var express = require('express');
 var app = express();
@@ -60,8 +61,19 @@ var trackPixelScales = [];
 var audioPlayer; //audio player
 var midiParser = createMidiParser(); //midi parser
 midiParser.on('fileLoaded', loadedSong);
+midiParser.on('playing', (event)=>{
+
+    if(midiParser.getSongPercentRemaining() <= 0){
+        console.log('song ended');
+        stop();
+    }
+    //TODO attach light fading here
+});
+
+
 
 var analyzedMidis = false;
+//TEMP
 loadSong(); //start loading each song, last to first and store track scale analyses
 
 //cron schedule
@@ -73,10 +85,11 @@ emitter.on('musicTime', () => {
     io.emit('nextRuntime', interval.next());
 });
 
-function playbackReady(){
-    console.log('Playback ready');
+function setupComplete(){
+    console.log('Setup Complete');
     //web socket events
     io.on('connection', function (socket) {
+    
         console.log('Client Connected');
         var interval = parser.parseExpression(config.cron);
         config.nextRuntime = new Date(interval.next());
@@ -88,9 +101,19 @@ function playbackReady(){
 }
 
 function setSong(index){
+    
+    console.log('isPlaying()', midiParser.isPlaying());
+    
     if(currentSong != index){
+        //new song, change song and play
+        stop();
         currentSong = index;
+        isPlaybackReady = false;
         loadSong();
+    }else{
+        //same song, restart
+        stop();
+        play();
     }
 }
 
@@ -99,23 +122,28 @@ function loadSong(){
 }
 
 function loadedSong(midiParser){
-    //analyze all midis
+    //analyze midi tracks, recursively load next song in reverse order so first song is ready to play
     if(!analyzedMidis){
-        analyzeMidiTracks(midiParser.tracks, currentSong);
-        midiParser.tempo = config.songs[currentSong].midiTempo;
-        console.log('Loaded song', currentSong, config.songs[currentSong].midiFile, midiParser.getSongTime());
+        console.log('Analyze song', currentSong, config.songs[currentSong].midiFile, Math.round(midiParser.getSongTime())+' seconds');        
+        analyzeMidi(midiParser, currentSong);
         if(currentSong > 0){
             //analyze the rest of the songs
             loadSong(--currentSong);
         }else{
             analyzedMidis = true;
-            
+            setupComplete();
             playbackReady();
         }
-    }else{        
-        midiParser.tempo = config.songs[currentSong].midiTempo;
-        //TODO call some function to indicate finished loading next song so that play() is not called before next song loaded
+    }else{
+        console.log('Loaded song', currentSong, config.songs[currentSong].midiFile, Math.round(midiParser.getSongTime())+' seconds');         
+        playbackReady();
+        play();
     }
+}
+
+function playbackReady(){
+    isPlaybackReady = true;
+    console.log('playbackReady');
 }
 
 // Initialize player and register event handler
@@ -137,7 +165,7 @@ function createMidiParser(){
                 
                 setPixels(startPixel, endPixel, color);
             }
-        }
+        } 
     });
 }
 
@@ -152,21 +180,31 @@ function setPixels(startPixel, endPixel, color){
 }
 
 function play(){
+
+    if(!isPlaybackReady){
+        console.log('!!!! PLAYBACK NOT READY !!!!');
+        return;
+    }
+
     var delay = 100;
     if(process.arch == 'arm'){
         delay = 800;
     }
     
     setTimeout(function(){
-        midiParser.skipToSeconds(config.songs[currentSong].midiStartAt);
+        config.songs[currentSong].midiStartAt && midiParser.skipToSeconds(config.songs[currentSong].midiStartAt);
+        //TODO is setting tempo necessary?
         midiParser.tempo = config.songs[currentSong].midiTempo;
         midiParser.play();
+        console.log('Play midi', config.songs[currentSong].midiFile);
     }, delay);
     
-    audioPlayer = player.play(config.audioPath+config.songs[currentSong].mp3File, function(err){
+    
+    
+    audioPlayer = player.play(config.audioPath+config.songs[currentSong].audioFile, function(err){
       if (err && !err.killed) throw err
     })
-    console.log('Play');
+    console.log('Play audio', config.songs[currentSong].audioFile);
 }
 
 function stop(){
@@ -181,13 +219,18 @@ function stop(){
 
 
 
-function analyzeMidiTracks(tracks, songIndex){
+function analyzeMidi(player, songIndex){
 
     var trackNests = [];
     var trackNotes = [];
     
+    //create config trackOptions array if not defined
+    if(typeof config.songs[songIndex].trackOptions == 'undefined'){
+        config.songs[songIndex].trackOptions = [];
+    }
+        
     //group all notes by track
-    tracks.forEach(function(track){
+    player.tracks.forEach(function(track){
         trackNests.push(d3.nest()
             .key(function(d) { return d.name; })
             .key(function(d) { return d.noteNumber; }).sortKeys(d3.ascending)
@@ -196,12 +239,26 @@ function analyzeMidiTracks(tracks, songIndex){
     
     //store which notes each track contains
     trackNests.forEach((trackNest, i)=>{
+        
+        //create trackOptions object if doesn't exist
+        if(typeof config.songs[songIndex].trackOptions[i] == 'undefined'){
+            config.songs[songIndex].trackOptions[i] = {
+                name: 'Track'+(i+1),
+                color: d3scaleChromatic.interpolateSpectral((i/(player.tracks.length-1))),
+                show: (i) ? true : false
+            };
+        }
+    
         trackNotes[i] = [];
         trackNest.forEach((event)=>{
             if(event.key == "Note on"){
                 event.values.forEach((noteNumber)=>{
                     trackNotes[i].push(parseInt(noteNumber.key));
                 });
+            }else if(event.key == "Sequence/Track Name"){
+                var trackNameEvent = event.values[0].values[0];
+                //store track instrument in config
+                config.songs[songIndex].trackOptions[trackNameEvent.track-1].instrument = trackNameEvent.string;
             }
         });
     });
@@ -209,11 +266,7 @@ function analyzeMidiTracks(tracks, songIndex){
     //map the domain of possible notes to the neopixel segment range
     var rangeIndex = 0;
     trackNotes.forEach((d, i)=>{
-        
-        //create track options object if it does not exist
-        if(i >= config.songs[songIndex].trackOptions.length){
-            config.songs[songIndex].trackOptions[i] = {};
-        }
+
         var trackOptions = config.songs[songIndex].trackOptions[i];
     
         var segmentSize = Math.floor(config.numPixels/d.length);

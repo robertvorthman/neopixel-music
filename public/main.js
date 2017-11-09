@@ -47,7 +47,7 @@ function buildPlaylist(songs){
         .enter()
         .append('li')
         .text(function(d){
-            return d.mp3File;
+            return d.audioFile;
         })
         .on('click', function(d, i){
             socket.emit('setSong', i);
