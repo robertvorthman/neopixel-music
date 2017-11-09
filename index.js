@@ -55,9 +55,6 @@ if(process.arch == 'arm'){
 }
 var pixelData = new Uint32Array(config.numPixels);
 
-
-var trackPixelScales = [];
-
 var audioPlayer; //audio player
 var midiParser = createMidiParser(); //midi parser
 midiParser.on('fileLoaded', loadedSong);
@@ -73,7 +70,6 @@ midiParser.on('playing', (event)=>{
 
 
 var analyzedMidis = false;
-//TEMP
 loadSong(); //start loading each song, last to first and store track scale analyses
 
 //cron schedule
@@ -153,8 +149,7 @@ function createMidiParser(){
         if(event.name == "Note off" || event.name == "Note on"){
             var trackOptions = config.songs[currentSong].trackOptions[event.track-1];
             if(trackOptions.show){
-                var scale = trackPixelScales[event.track-1];
-                var startPixel = scale(event.noteNumber);
+                var startPixel = trackOptions.scale(event.noteNumber);
                 var endPixel = startPixel+trackOptions.segmentSize;
                 var color = 0; //0 is black/off
 
@@ -194,8 +189,9 @@ function play(){
     
     setTimeout(function(){
         config.songs[currentSong].midiStartAt && midiParser.skipToSeconds(config.songs[currentSong].midiStartAt);
-        //TODO is setting tempo necessary?
-        midiParser.tempo = config.songs[currentSong].midiTempo;
+        if(typeof config.songs[currentSong].midiTempo != 'undefined'){
+            midiParser.tempo = config.songs[currentSong].midiTempo;
+        }
         midiParser.play();
         console.log('Play midi', config.songs[currentSong].midiFile);
     }, delay);
@@ -234,10 +230,14 @@ function analyzeMidi(player, songIndex){
     player.tracks.forEach(function(track){
         trackNests.push(d3.nest()
             .key(function(d) { return d.name; })
-            .key(function(d) { return d.noteNumber; }).sortKeys(d3.ascending)
+            .key(function(d) { return d.noteNumber; }).sortKeys((a, b)=>{
+                var numA = parseInt(a);
+                var numB = parseInt(b);
+                return numA - numB;
+            })
             .entries(track.events))
     });
-    
+        
     //store which notes each track contains
     trackNests.forEach((trackNest, i)=>{
         
@@ -245,8 +245,8 @@ function analyzeMidi(player, songIndex){
         if(typeof config.songs[songIndex].trackOptions[i] == 'undefined'){
             config.songs[songIndex].trackOptions[i] = {
                 name: 'Track'+(i+1),
-                color: d3scaleChromatic.interpolateSpectral((i/(player.tracks.length-1))),
-                show: (i) ? true : false
+                color: d3scaleChromatic.interpolateSpectral(((i+1)/(player.tracks.length))),
+                show: true
             };
         }
     
@@ -266,21 +266,19 @@ function analyzeMidi(player, songIndex){
     
     //map the domain of possible notes to the neopixel segment range
     var rangeIndex = 0;
-    trackNotes.forEach((d, i)=>{
+    trackNotes.forEach((notes, i)=>{
 
         var trackOptions = config.songs[songIndex].trackOptions[i];
     
-        var segmentSize = Math.floor(config.numPixels/d.length);
+        var segmentSize = Math.floor(config.numPixels/notes.length);
         trackOptions.segmentSize = segmentSize;
-        var range = d3.range(0, config.numPixels, segmentSize);
-        //console.log(trackOptions.name, 'segmentSize', segmentSize, 'range', range, 'domain', d);
         
-        //store scale in global
-        trackPixelScales[i] = d3.scaleOrdinal(range).domain(d);
-        trackOptions.range = range;
-        trackOptions.domain = d;
-
-        rangeIndex += d.length+1;
+        var range = d3.range(0, config.numPixels, segmentSize);
+        trackOptions.scale = d3.scaleOrdinal(range).domain(notes);
+        trackOptions.range = trackOptions.scale.range();
+        trackOptions.domain = trackOptions.scale.domain();
+        
+        rangeIndex += notes.length+1;
     });
         
 }
