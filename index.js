@@ -18,6 +18,7 @@ if(process.arch == 'arm'){
 const CronEmitter = require('cron-emitter');
 var parser = require('cron-parser');
 var d3 = require("d3");
+//TODO uninstall d3scaleChromatic
 var d3scaleChromatic = require("d3-scale-chromatic");
 // Setup express server
 var express = require('express');
@@ -40,7 +41,7 @@ process.on('SIGINT', function () {
 });
 
 http.listen(port, function(){
-  console.log('listening on *:'+port);
+  //console.log('listening on *:'+port);
 });
 
 // Routing
@@ -48,6 +49,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 //state
 var currentSong = config.songs.length - 1;
+var schedulePlay = true;
 
 //init neopixels
 if(process.arch == 'arm'){
@@ -58,20 +60,15 @@ var pixelData = new Uint32Array(config.numPixels);
 var audioPlayer; //audio player
 var midiParser = createMidiParser(); //midi parser
 midiParser.on('fileLoaded', loadedSong);
-midiParser.on('playing', (event)=>{
-
-    if(midiParser.getSongPercentRemaining() <= 0){
-        console.log('song ended');
-        stop();
-    }else{
-        console.log(midiParser.totalTicks, midiParser.isPlaying());
+midiParser.on('endOfFile', (event) => {
+    io.emit('endOfFile', currentSong);
+    config.songs[currentSong].playing = false;
+    //play next song
+    if(currentSong < config.songs.length - 1){
+        setTimeout(()=>{
+            playSong(currentSong+1);
+        }, config.delayBetweenSongs);
     }
-    //TODO attach light fading here
-});
-
-midiParser.on('endOfFile', (event)=>{
-    console.log('endOfFile', event);
-    console.log('midiParser.isPlaying()', midiParser.isPlaying());
 });
 
 
@@ -81,15 +78,20 @@ loadSong(); //start loading each song, last to first and store track scale analy
 
 //cron schedule
 const emitter = new CronEmitter();
-emitter.add(config.cron, 'musicTime');
-emitter.on('musicTime', () => {
-    var interval = parser.parseExpression(config.cron);
-    //var untilNext = new Date(interval.next()) - new Date(interval.prev());
-    io.emit('nextRuntime', interval.next());
+emitter.add(config.cron, 'cron');
+emitter.on('cron', () => {
+    if(schedulePlay){
+        var interval = parser.parseExpression(config.cron);
+        io.emit('nextRuntime', interval.next());
+        //start playing first song, only if not already playing
+        if(!midiParser.isPlaying()){
+            playSong(0);
+        }
+    }
 });
 
 function setupComplete(){
-    console.log('Setup Complete');
+    //console.log('Setup Complete');
     //web socket events
     io.on('connection', function (socket) {
     
@@ -99,14 +101,13 @@ function setupComplete(){
         socket.emit('config', config);
         socket.on('play', play);
         socket.on('stop', stop);
-        socket.on('setSong', setSong);
+        socket.on('playSong', playSong);
+        socket.on('disableSchedulePlay', disableSchedulePlay);
     });
 }
 
-function setSong(index){
-    
-    console.log('isPlaying()', midiParser.isPlaying());
-    
+function playSong(index){
+        
     if(currentSong != index){
         //new song, change song and play
         stop();
@@ -147,7 +148,10 @@ function loadedSong(midiParser){
 
 function playbackReady(){
     isPlaybackReady = true;
-    console.log('playbackReady');
+}
+
+function disableSchedulePlay(){
+    schedulePlay = false;
 }
 
 // Initialize player and register event handler
@@ -201,6 +205,10 @@ function play(){
         }
         midiParser.play();
         console.log('Play midi', config.songs[currentSong].midiFile);
+        //reenable schedule play and notify front end
+        schedulePlay = true;
+        var interval = parser.parseExpression(config.cron);
+        io.emit('nextRuntime', interval.next());
     }, delay);
     
     
@@ -209,6 +217,8 @@ function play(){
       if (err && !err.killed) throw err
     })
     console.log('Play audio', config.songs[currentSong].audioFile);
+    io.emit('play', currentSong);
+    config.songs[currentSong].playing = true; 
 }
 
 function stop(){
@@ -219,6 +229,8 @@ function stop(){
     }
     setPixels(0, config.numPixels-1, 0); //set all pixels black/off
     console.log('Stop');
+    io.emit('stop', currentSong);
+    config.songs[currentSong].playing = false;
 }
 
 
@@ -250,9 +262,10 @@ function analyzeMidi(player, songIndex){
         
         //create trackOptions object if doesn't exist
         if(typeof config.songs[songIndex].trackOptions[i] == 'undefined'){
+            var lastIndex = player.tracks.length-1;
             config.songs[songIndex].trackOptions[i] = {
                 name: 'Track'+(i+1),
-                color: d3scaleChromatic.interpolateSpectral(((i+1)/(player.tracks.length))),
+                color: d3.scaleLinear().range(['purple','red', 'green']).domain([0,lastIndex/2, lastIndex])(i),
                 show: true
             };
         }

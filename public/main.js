@@ -2,7 +2,9 @@ var d3 = require('d3');
 var d3TimeFormat = require('d3-time-format');
 
 var socket = io();
-            
+
+var config;
+
 var pixelData;
 var canvasContext, canvasBase;
 var pixelSize = 7;
@@ -12,9 +14,10 @@ var pixelTotalSize = pixelSize+pixelPadding;
 var nextRuntime = 0;
 tick();
 
-var playlist = d3.select('#playlist').append('svg');
+var listItems, playlist = d3.select('#playlist').append('svg');
 
-socket.on('config', function(config){
+socket.on('config', function(d){
+    config = d;
     console.log('config', config);
     nextRuntime = new Date(config.nextRuntime);
     buildPlaylist(config.songs);
@@ -26,7 +29,6 @@ socket.on('config', function(config){
 
 socket.on('pixelData', function(data) {
     pixelData = data;
-    //console.debug('time', new Date(), 'pixelData', pixelData);
     bindPixelData(pixelData);
     drawPixels();
 });
@@ -35,24 +37,41 @@ socket.on('nextRuntime', function(data){
     nextRuntime = new Date(data);
 });
 
-document.querySelector('#playButton').addEventListener('click', function(){
-    socket.emit('play');
+socket.on('endOfFile', function(i){
+    config.songs[i].playing = false;
+    updateListItems();
 });
-document.querySelector('#stopButton').addEventListener('click', function(){
-    socket.emit('stop');
+socket.on('play', function(i){
+    config.songs[i].playing = true;
+    updateListItems();
+});
+socket.on('stop', function(i){
+    config.songs[i].playing = false;
+    updateListItems();
+});
+
+document.querySelector('#cancelButton').addEventListener('click', function(event){
+    nextRuntime = 0;
+    socket.emit('disableSchedulePlay');
+    d3.select('#clock-container').classed('hidden', true);
 });
 
 function buildPlaylist(songs){
     
     var rowHeight = 40;
+    var rectLeftOffset = 20;
+    
+    var bodyWidth = parseInt(d3.select('body').style('width'));
+    
+    var rectMaxWidth = bodyWidth - rectLeftOffset;
     
     d3.select('#playlist > svg')
         .attr('height', rowHeight*songs.length)
-        .attr('width', 600);
+        .attr('width', bodyWidth);
     
     
     
-    var listItems = playlist.selectAll('g')
+    listItems = playlist.selectAll('g')
         .data(songs)
         .enter()
         .append('g')
@@ -60,27 +79,33 @@ function buildPlaylist(songs){
             return "translate(0," + (((i+1) * rowHeight) - (rowHeight/2)) + ")";
         });
     
-    //play/pause buttons
+    //play/stop buttons
     listItems
         .append('text')
-        .attr('class', 'play-pause-button')
-        .text(function(d){
-            return "►";
-            //return "❚❚";
-        })
+        .attr('class', 'play-stop-button')
+        .text(getListItemButton)
         .on('click', function(d, i){
-            socket.emit('setSong', i);
+            if(d.playing){
+                socket.emit('stop');
+            }else{
+                socket.emit('playSong', i);
+            }
         });
     
+    var maxSongDuration = d3.max(songs, function(d){
+        return d.duration;
+    });
+    var durationScale = d3.scaleLinear().domain([0,maxSongDuration]).range([0,rectMaxWidth]);
+        
     //duration rectangle
     listItems
         .append('rect')
         .attr('transform', function(d){
-            return "translate(20,-15)";
+            return "translate("+rectLeftOffset+",-15)";
         })
         .attr('height', 20)
         .attr('width', function(d){
-            return d.duration * 50; //todo make this scale with svg width so longest song is full width
+            return durationScale(d.duration);
         });
     
     //song name
@@ -91,20 +116,23 @@ function buildPlaylist(songs){
             return d.audioFile;
         });
     
-    
+    //update playlist total duration
+    var totalSeconds = d3.sum(songs, function(d){return d.duration});
         
-    /*
-    d3.select('#playlist').append('ol').selectAll('li')
-        .data(songs)
-        .enter()
-        .append('li')
-        .text(function(d){
-            return d.audioFile;
-        })
-        .on('click', function(d, i){
-            socket.emit('setSong', i);
-        });
-    */
+    d3.select('#playlistDuration').text(d3.timeFormat('%-M:%S')(totalSeconds*1000));
+    
+}
+
+function updateListItems(){
+    listItems.selectAll('.play-stop-button')
+        .text(getListItemButton);
+}
+
+function getListItemButton(d){
+    if(d.playing){
+        return "◼";
+    }
+    return "▶";
 }
  
 function preparePixelData(numPixels){
@@ -178,12 +206,11 @@ function tick(){
     var message = '';
     var now = new Date();
     var untilNext = nextRuntime - now;
-    if(untilNext && untilNext >= 0){
-        untilNext -= 1000;
+    if(untilNext >= 0){
         var totalSeconds = Math.round(untilNext/1000);
         var minutes = Math.floor(totalSeconds/60);
         if(minutes > 59){
-            message = d3.timeFormat("%I:%M %p")(nextRuntime);    
+            message = d3.timeFormat("%-I:%M %p")(nextRuntime);    
             setTimeout(tick, 10 * 60 * 1000);
         }else{
             var seconds = totalSeconds%60;
@@ -194,8 +221,10 @@ function tick(){
             message = minutes+":"+secondsPadding+seconds;
             setTimeout(tick, 1000);
         }
+        d3.select('#clock-container').classed('hidden', false);
         document.querySelector('#clock').innerHTML = message;
     }else{
+        document.querySelector('#clock').innerHTML = '';
         setTimeout(tick, 1000);
     }
 }

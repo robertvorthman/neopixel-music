@@ -26,7 +26,7 @@
                 height: 20px;
             }
             
-            .play-pause-button{
+            .play-stop-button, #cancelButton{
                 cursor: pointer;
             }
             
@@ -37,20 +37,25 @@
             rect{
                 fill: blue;
             }
-        </style>
+            
+            #cancelButton{
+                color: red;
+            }
+            
+            .hidden{
+                opacity: 0.5;
+            }
+        </style>        
     </head>
     <body>
-        <h1>&#127876; Christmas Lights &#9836;</h1>
+        <h1>&#127876; Christmas Lights <span style='color:red'>&#9836;</span></h1>
         <div id="pixels"></div>
         <div id='clock-container'>
-            <p>Next Routine Starts: <span id='clock'></span></p>
-        </div>
-        
-        <button id='playButton'>Play</button>
-        <button id='stopButton'>Stop</button>
+            <p>Next Routine Starts: <span id='clock'></span> <span id='cancelButton'>X</span></p>
+        </div>        
         
         <div>
-            <h2>Playlist</h2>
+            <h2>Playlist <small id='playlistDuration'></small></h2>
             <div id='playlist'></div>
         </div>
         
