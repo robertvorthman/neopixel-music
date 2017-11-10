@@ -16,6 +16,16 @@ tick();
 
 var listItems, playlist = d3.select('#playlist').append('svg');
 
+socket.io.on('connect_error', function(error) {
+    d3.select('#status-message').text('Disconnected');
+});
+
+socket.io.on('reconnect', function(event) {
+    d3.select('#status-message').text('');
+});
+
+
+
 socket.on('config', function(d){
     config = d;
     console.log('config', config);

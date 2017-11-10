@@ -45,11 +45,21 @@
             .hidden{
                 opacity: 0.5;
             }
+            
+            #status-message{
+                color: red;
+                font-size: 3em;
+                position: absolute;
+                top: 5px;
+                text-align: center;
+                width: 100%;
+            }
         </style>        
     </head>
     <body>
         <h1>&#127876; Christmas Lights <span style='color:red'>&#9836;</span></h1>
         <div id="pixels"></div>
+        <h3 id='status-message'></h3>
         <div id='clock-container'>
             <p>Next Routine Starts: <span id='clock'></span> <span id='cancelButton'>X</span></p>
         </div>        
