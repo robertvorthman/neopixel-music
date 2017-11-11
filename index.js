@@ -1,3 +1,11 @@
+/*TODO
+fix range length doesn't match domain length
+ignore tracks with 0 notes
+hide option
+handle velocities up to 127
+scale track max velocity
+*/
+
 //config file
 var config = require('./config.js');
 
@@ -160,12 +168,12 @@ function disableSchedulePlay(){
 // Initialize player and register event handler
 function createMidiParser(){
     return new MidiPlayer.Player(function(event) {
-
         if(event.name == "Note off" || event.name == "Note on"){
 
             var song = config.songs[currentSong];
-            var trackOptions = song.trackOptions[event.track-1];
-            if(trackOptions.show){
+            var trackOptions = song.trackOptions[song.originalTrackOrder[event.track-1]];
+
+            if(!trackOptions.hide){
                 var startPixel = trackOptions.scale(event.noteNumber);
                 if(song.tracksUseFullWidth){
                     var endPixel = startPixel+trackOptions.segmentSize;
@@ -176,6 +184,7 @@ function createMidiParser(){
                 var color = 0; //0 is black/off
 
                 if(event.name == "Note on" && event.velocity > 0){
+                                
                     var colorObject = d3.color(trackOptions.color);
                     var velocityColor = colorObject.darker((100-event.velocity)/50); //darken color based on note volume
                     var color = rgb2Int(velocityColor.r, velocityColor.g, velocityColor.b);
@@ -217,6 +226,7 @@ function play(){
         }
         midiParser.play();
         console.log('Play midi', config.songs[currentSong].midiFile);
+        
         //reenable schedule play and notify front end
         schedulePlay = true;
         var interval = parser.parseExpression(config.cron);
@@ -253,10 +263,8 @@ function analyzeMidi(player, songIndex){
     var trackNests = [];
     var trackNotes = [];
     
-    //create config trackOptions array if not defined
-    if(typeof song.trackOptions == 'undefined'){
-        song.trackOptions = [];
-    }
+    //create config tracks array
+    var tracks = [];
         
     //group all notes by track
     player.tracks.forEach(function(track){
@@ -273,17 +281,10 @@ function analyzeMidi(player, songIndex){
     //store which notes each track contains
     trackNests.forEach((trackNest, i)=>{
         
-        //create trackOptions object if doesn't exist
-        if(typeof song.trackOptions[i] == 'undefined'){
-            var lastIndex = player.tracks.length-1;
-            song.trackOptions[i] = {
-                name: 'Track'+(i+1),
-                color: d3.color('white'),
-                show: true
-            };
-        }
-    
         trackNotes[i] = [];
+        
+        var instrument = '';
+        
         trackNest.forEach((event)=>{
             if(event.key == "Note on"){
                 event.values.forEach((noteNumber)=>{
@@ -292,32 +293,69 @@ function analyzeMidi(player, songIndex){
             }else if(event.key == "Sequence/Track Name"){
                 var trackNameEvent = event.values[0].values[0];
                 //store track instrument in config
-                song.trackOptions[trackNameEvent.track-1].instrument = trackNameEvent.string;
+                instrument = trackNameEvent.string.trim();
             }
+        });
+        
+        //create track object
+        tracks.push({
+            name: 'Track'+(i+1),
+            index: i, //retain original index which will be resorted by median pitch later so that midi events can be matched up to trackOptions
+            instrument: instrument
         });
     });
     
+    //calculate track stats
+    song.totalNotes = 0; //total number of unique notes in each track, not total number of notes played per song
+    trackNotes.forEach((notes, i)=>{
+        song.totalNotes += notes.length;
+        tracks[i].medianPitch = (notes.length) ? d3.median(notes) : 0; //median pitch
+        tracks[i].notes = notes;
+    });
+        
+    //sort tracks by pitch so higher pitch notes show up at end of pixel strip and lower notes show up at other end of pixel strip
+    var sortDirection = (config.pitchSort) ? d3[config.pitchSort] : d3.ascending;
+    tracks.sort((a,b)=>{
+        return sortDirection(a.medianPitch, b.medianPitch);
+    });
+    song.originalTrackOrder = [];
+
     //map the domain of possible tract notes to the entire neopixel segment range
     var pixelIndex = 0;    
-    var totalNotes = 0;
-    trackNotes.forEach((notes, i)=>{
-        totalNotes += notes.length;
-    });
-    song.totalNotes = totalNotes;
     
     var segmentSize;
-    if(!song.tracksUseFullWidth){
-        segmentSize = config.numPixels/totalNotes;
+    if(song.tracksUseFullWidth){
+        //PIXELS CAN OVERLAP IF MULTIPLE TRACKS PLAY NOTES SIMULTANEOUSLY
+        //tracks with few notes have very wide pixel segments, tracks with many notes have narrow segments
     }else{
-        //each track has it's own segment size (tracks with only a few notes have very wide pixel segments
+        //tracks are separated into lanes, guaranteed not to overlap.  all notes have same segment size
+        segmentSize = config.numPixels/song.totalNotes; //tracks separated into "lanes" of pixels
     }
     
-    var colorIndex = 0;
     
-    trackNotes.forEach((notes, i)=>{
+//MERGE WITH CONFIG TRACK OPTIONS HERE to ensure hide value eliminates pixel lane
+    /*
+    song.trackOptions.forEach((trackOption)=>{
         
-        var trackOptions = song.trackOptions[i];
+    });
+    */
+
+    //temp
+    song.trackOptions = tracks;
+    
+    var colorIndex = 0;
+    var tracksWithNotes = 0;
+    
+    song.trackOptions.forEach((trackOptions, i)=>{    
+        var notes = trackOptions.notes;        
         trackOptions.numNotes = notes.length;
+        
+        if(notes.length){
+            tracksWithNotes++;
+        }
+        
+        //store original track order from before sorting
+        song.originalTrackOrder[trackOptions.index] = i;
         
         //if track has notes, assign next color in config.colors
         if(trackOptions.numNotes){
@@ -332,6 +370,7 @@ function analyzeMidi(player, songIndex){
             range = d3.range(0, config.numPixels, segmentSize);
         }else{
             song.segmentSize = segmentSize;
+            
             while(range.length < notes.length){
                 var pixel = Math.round(pixelIndex*segmentSize);
                 range.push(pixel);
@@ -342,7 +381,7 @@ function analyzeMidi(player, songIndex){
         trackOptions.range = trackOptions.scale.range();
         trackOptions.domain = trackOptions.scale.domain();
         
-    }); 
+    });  
 }
 
 function rgb2Int(r, g, b) {
