@@ -7,6 +7,23 @@ var config = {
     audioPath: 'audio/',
     songs: [
         {
+            audioFile: "dingdong.aiff",
+            midiFile: "dingdong.mid",
+        },
+        {
+            audioFile: "deck the halls.aiff",
+            midiFile: "deck the halls.mid",
+        },
+        {
+            audioFile: "sleigh.aiff",
+            midiFile: "sleigh.mid",
+        },
+        {
+            audioFile: "dancy of the sugar plum fairy.aiff",
+            midiFile: "dancy of the sugar plum fairy.mid",
+            tracksUseFullWidth: true
+        },
+        {
             audioFile: "wizards in winter.mp3",
             midiFile: "wizards edit 5.mid",
             midiTempo: 148.3,
