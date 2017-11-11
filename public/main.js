@@ -11,10 +11,11 @@ var pixelSize = 7;
 var pixelPadding = 1
 var pixelTotalSize = pixelSize+pixelPadding;
 
+var currentSong;
 var nextRuntime = 0;
 tick();
 
-var listItems, playlist = d3.select('#playlist').append('svg');
+var listItems, durationScale, playlist = d3.select('#playlist').append('svg');
 
 socket.io.on('connect_error', function(error) {
     d3.select('#status-message').text('Disconnected');
@@ -28,6 +29,9 @@ socket.io.on('reconnect', function(event) {
 
 socket.on('config', function(d){
     config = d;
+    if(typeof config.currentSong != 'undefined'){
+        currentSong = config.currentSong;
+    }
     console.log('config', config);
     nextRuntime = new Date(config.nextRuntime);
     buildPlaylist(config.songs);
@@ -38,9 +42,13 @@ socket.on('config', function(d){
 });
 
 socket.on('pixelData', function(data) {
-    pixelData = data;
+    pixelData = data.pixelData;
     bindPixelData(pixelData);
     drawPixels();
+    if(typeof currentSong != 'undefined' && data.percentRemaining >= 0){
+        config.songs[currentSong].percentRemaining = data.percentRemaining;
+        updateRemainingTime();
+    }
 });
 
 socket.on('nextRuntime', function(data){
@@ -48,14 +56,20 @@ socket.on('nextRuntime', function(data){
 });
 
 socket.on('endOfFile', function(i){
+    currentSong = undefined;
+    config.songs[i].percentRemaining = 100;
     config.songs[i].playing = false;
     updateListItems();
 });
 socket.on('play', function(i){
+    currentSong = i;
+    config.songs[currentSong].percentRemaining = 100;
     config.songs[i].playing = true;
     updateListItems();
 });
 socket.on('stop', function(i){
+    currentSong = undefined;
+    config.songs[i].percentRemaining = 100;
     config.songs[i].playing = false;
     updateListItems();
 });
@@ -78,13 +92,12 @@ function buildPlaylist(songs){
     d3.select('#playlist > svg')
         .attr('height', rowHeight*songs.length)
         .attr('width', bodyWidth);
-    
-    
-    
+
     listItems = playlist.selectAll('g')
         .data(songs)
         .enter()
         .append('g')
+        .classed('playing', getListItemClass)
         .attr('transform', function(d, i) {        
             return "translate(0," + (((i+1) * rowHeight) - (rowHeight/2)) + ")";
         });
@@ -105,7 +118,7 @@ function buildPlaylist(songs){
     var maxSongDuration = d3.max(songs, function(d){
         return d.duration;
     });
-    var durationScale = d3.scaleLinear().domain([0,maxSongDuration]).range([0,rectMaxWidth]);
+    durationScale = d3.scaleLinear().domain([0,maxSongDuration]).range([0,rectMaxWidth]);
         
     //duration rectangle
     listItems
@@ -134,16 +147,53 @@ function buildPlaylist(songs){
 }
 
 function updateListItems(){
+    //toggle play/stop button
     listItems.selectAll('.play-stop-button')
         .text(getListItemButton);
+    
+    //toggle class
+    listItems
+        .classed('playing', getListItemClass)
+    
+    //update progress bar
+    listItems
+        .selectAll('rect')
+        .attr('width', function(d){
+            return durationScale(d.duration);
+        })
+        .attr('x', function(d){
+            return 0;
+        });
 }
 
-function getListItemButton(d){
+function updateRemainingTime(){
+    listItems
+        .filter(function(d,i){
+            return i == currentSong;
+        })
+        .selectAll('rect')
+        .attr('width', function(d){
+            return durationScale(d.duration)*d.percentRemaining/100;
+        })
+        .attr('x', function(d){
+            return durationScale(d.duration)*(100 - d.percentRemaining)/100;
+        });
+}
+
+function getListItemButton(d, i){
     if(d.playing){
         return "◼";
     }
     return "▶";
 }
+
+function getListItemClass(d, i){
+    if(d.playing){
+        return true;
+    }
+    return false;
+}
+
  
 function preparePixelData(numPixels){
     var pixelData = [];

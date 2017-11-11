@@ -96,6 +96,11 @@ function setupComplete(){
         console.log('Client Connected');
         var interval = parser.parseExpression(config.cron);
         config.nextRuntime = new Date(interval.next());
+        
+        if(midiParser.isPlaying()){
+            config.currentSong = currentSong;
+        }
+        
         socket.emit('config', config);
         socket.on('play', play);
         socket.on('stop', stop);
@@ -167,8 +172,7 @@ function createMidiParser(){
                 }else{
                     var endPixel = startPixel+Math.round(song.segmentSize);
                 }
-                
-                               
+     
                 var color = 0; //0 is black/off
 
                 if(event.name == "Note on" && event.velocity > 0){
@@ -188,8 +192,7 @@ function setPixels(startPixel, endPixel, color){
         pixelData[x] = color;
     }
     
-    //TODO also emit song percent complete to client
-    io.emit('pixelData', Array.from(pixelData));
+    io.emit('pixelData', {pixelData:Array.from(pixelData), percentRemaining: midiParser.getSongPercentRemaining()});
     if(process.arch == 'arm'){
         ws281x.render(pixelData);
     }
@@ -339,30 +342,9 @@ function analyzeMidi(player, songIndex){
         trackOptions.range = trackOptions.scale.range();
         trackOptions.domain = trackOptions.scale.domain();
         
-    });
-    
-    
-    
-    
-    
-    //old laned version
-    /*
-    var rangeIndex = 0;
-    trackNotes.forEach((d, i)=>{
-        var segmentSize = Math.floor(config.numPixels/d.length);
-        config.trackOptions[i].segmentSize = segmentSize;
-        var range = d3.range(0, config.numPixels, segmentSize);
-        console.log(config.trackOptions[i].name, 'segmentSize', segmentSize, 'range', range, 'domain', d);
-        trackPixelScales[i] = d3.scaleOrdinal(range).domain(d);
-        rangeIndex += d.length+1;
-    });
-    */
-        
+    }); 
 }
 
 function rgb2Int(r, g, b) {
   return ((r & 0xff) << 16) + ((g & 0xff) << 8) + (b & 0xff);
 }
-
- 
-
