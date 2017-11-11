@@ -136,7 +136,7 @@ function buildPlaylist(songs){
         .append('text')
         .attr('x', 20)
         .text(function(d){
-            return d.audioFile;
+            return d.audioFile.replace(/\.[^/.]+$/, "");
         });
     
     //update playlist total duration

@@ -1,37 +1,32 @@
 var config = {
     port: 3000,
     numPixels: 144,
-    cron: '* * * */15 * *',
+    cron: '* */30 * * * *',
     delayBetweenSongs: 1000,
-    colors: ['red', 'green', 'purple'], //colors roll over if number of tracks exceeds number of colors
+    colors: ['red', 'green', 'purple'], //optional, colors roll over if number of tracks exceeds number of colors
     audioPath: 'audio/',
     pitchSort: 'ascending', //defaults to ascending, tracks with higher pitch median note appear at end of pixel strip
     songs: [
-    /*
         {
-            audioFile: "Jingle Bells.aiff",
-            midiFile: "Jingle Bells.mid",
-        },{
-            audioFile: "dingdong.aiff",
-            midiFile: "dingdong.mid",
-        },
-        {
-            audioFile: "deck the halls.aiff",
-            midiFile: "deck the halls.mid",
-        },
-        {
-            audioFile: "sleigh.aiff",
+            audioFile: "Sleigh Ride.aiff",
             midiFile: "sleigh.mid",
+            trackOptions: [
+                {
+                    name: "Track4",
+                    hide: true
+                },{
+                    name: "Track5",
+                    hide: true
+                }
+            ]
         },
-        */
         {
-            audioFile: "dancy of the sugar plum fairy.aiff",
+            audioFile: "Dance of the Sugar Plum Fairies.aiff",
             midiFile: "dancy of the sugar plum fairy.mid",
-            tracksUseFullWidth: true,
             trackOptions: [
                 {
                     name: "Track3",
-                    color: 'pink',
+                    color: 'blue',
                 },
                 {
                     name: "Track2",
@@ -39,29 +34,20 @@ var config = {
                 }
             ]
         },
-        
-        /*
         {
-            audioFile: "wizards in winter.mp3",
+            audioFile: "Jingle Bells.aiff",
+            midiFile: "Jingle Bells.mid",
+        },
+        {
+            audioFile: "Ding Dong Merrily on High.aiff",
+            midiFile: "dingdong.mid",
+        },
+        {
+            audioFile: "Wizards In Winter.mp3",
             midiFile: "wizards edit 5.mid",
             midiTempo: 148.3,
             tracksUseFullWidth: true
-        },
-        {
-            audioFile: "sarajevo.aiff",
-            midiFile: "sarajevo.mid"
         }
-        ,
-        
-        {
-            audioFile: "HarkTheHeraldAngelsSing.aiff",
-            midiFile: "HarkTheHeraldAngelsSing.mid"
-        },
-        {
-            audioFile: "CarolOfTheBells.aiff",
-            midiFile: "CarolOfTheBells.mid"
-        }
-        */
     ]
 };
 module.exports = config;

@@ -1,18 +1,39 @@
 /*TODO
-fix range length doesn't match domain length
-ignore tracks with 0 notes
+
+
+DONE
+merge track config into trackObjects
 hide option
-handle velocities up to 127
-scale track max velocity
+add velocityDarkensColor option to config?
+validate if color config is valid colors d3.color(d) != null
 */
 
 //config file
 var config = require('./config.js');
+//d3
+var d3 = require("d3");
 
+//validate config file
+//has songs
 if(config.songs.length < 1){
     console.log('!!! Error !!!, no songs defined in config.js, config.songs is empty.');
     process.exit(0);
 }
+//default colors
+if(typeof config.colors == 'undefined' || config.colors.length == 0){
+    var defaultColors = ['red', 'green', 'purple'];
+    config.colors = defaultColors;
+    console.log('Using default colors red, green and purple.  Override with array in config.colors using strings compatible with d3.color');
+}
+
+//colors are valid
+config.colors.forEach((color, i)=>{
+    var colorObject = d3.color(color);
+    if(colorObject == null){
+        console.log('config.color "'+color+'" is not a valid color.  Defaulting to white');
+        config.colors.splice(i, 1, 'white');
+    }
+});
 
 //midi parser
 var MidiPlayer = require('midi-player-js');
@@ -25,7 +46,7 @@ if(process.arch == 'arm'){
 }
 const CronEmitter = require('cron-emitter');
 var parser = require('cron-parser');
-var d3 = require("d3");
+
 // Setup express server
 var express = require('express');
 var app = express();
@@ -97,7 +118,7 @@ emitter.on('cron', () => {
 });
 
 function setupComplete(){
-    //console.log('Setup Complete');
+    console.log('Setup Complete');
     //web socket events
     io.on('connection', function (socket) {
     
@@ -171,12 +192,12 @@ function createMidiParser(){
         if(event.name == "Note off" || event.name == "Note on"){
 
             var song = config.songs[currentSong];
-            var trackOptions = song.trackOptions[song.originalTrackOrder[event.track-1]];
+            var trackObject = song.trackObjects[song.originalTrackOrder[event.track-1]];
 
-            if(!trackOptions.hide){
-                var startPixel = trackOptions.scale(event.noteNumber);
+            if(!trackObject.hide){
+                var startPixel = trackObject.scale(event.noteNumber);
                 if(song.tracksUseFullWidth){
-                    var endPixel = startPixel+trackOptions.segmentSize;
+                    var endPixel = startPixel+trackObject.segmentSize;
                 }else{
                     var endPixel = startPixel+Math.round(song.segmentSize);
                 }
@@ -184,9 +205,8 @@ function createMidiParser(){
                 var color = 0; //0 is black/off
 
                 if(event.name == "Note on" && event.velocity > 0){
-                                
-                    var colorObject = d3.color(trackOptions.color);
-                    var velocityColor = colorObject.darker((100-event.velocity)/50); //darken color based on note volume
+                    var volume = trackObject.volumeScale(event.velocity);
+                    var velocityColor = trackObject.color.darker((100-volume)/50); //darken color based on note volume
                     var color = rgb2Int(velocityColor.r, velocityColor.g, velocityColor.b);
                 }
                 
@@ -225,7 +245,6 @@ function play(){
             midiParser.tempo = config.songs[currentSong].midiTempo;
         }
         midiParser.play();
-        console.log('Play midi', config.songs[currentSong].midiFile);
         
         //reenable schedule play and notify front end
         schedulePlay = true;
@@ -238,7 +257,7 @@ function play(){
     audioPlayer = player.play(config.audioPath+config.songs[currentSong].audioFile, function(err){
       if (err && !err.killed) throw err
     })
-    console.log('Play audio', config.songs[currentSong].audioFile);
+    console.log('Play audio', config.songs[currentSong].audioFile, new Date().toLocaleTimeString());
     io.emit('play', currentSong);
     config.songs[currentSong].playing = true; 
 }
@@ -284,10 +303,13 @@ function analyzeMidi(player, songIndex){
         trackNotes[i] = [];
         
         var instrument = '';
+        var maxVelocity = 0;
         
         trackNest.forEach((event)=>{
             if(event.key == "Note on"){
                 event.values.forEach((noteNumber)=>{
+                    var noteMaxVelocity = d3.max(noteNumber.values, (d)=>{ return d.velocity});
+                    maxVelocity = (noteMaxVelocity > maxVelocity) ? noteMaxVelocity : maxVelocity;
                     trackNotes[i].push(parseInt(noteNumber.key));
                 });
             }else if(event.key == "Sequence/Track Name"){
@@ -300,8 +322,10 @@ function analyzeMidi(player, songIndex){
         //create track object
         tracks.push({
             name: 'Track'+(i+1),
-            index: i, //retain original index which will be resorted by median pitch later so that midi events can be matched up to trackOptions
-            instrument: instrument
+            index: i, //retain original index which will be resorted by median pitch later so that midi events can be matched up to trackObject
+            instrument: instrument,
+            maxVelocity: maxVelocity,
+            volumeScale: d3.scaleLinear().range([0,100]).domain([0,maxVelocity])
         });
     });
     
@@ -323,63 +347,88 @@ function analyzeMidi(player, songIndex){
     //map the domain of possible tract notes to the entire neopixel segment range
     var pixelIndex = 0;    
     
-    var segmentSize;
+    var rawSegmentSize, segmentSize;
     if(song.tracksUseFullWidth){
         //PIXELS CAN OVERLAP IF MULTIPLE TRACKS PLAY NOTES SIMULTANEOUSLY
         //tracks with few notes have very wide pixel segments, tracks with many notes have narrow segments
     }else{
         //tracks are separated into lanes, guaranteed not to overlap.  all notes have same segment size
-        segmentSize = config.numPixels/song.totalNotes; //tracks separated into "lanes" of pixels
+        song.rawSegmentSize = config.numPixels/song.totalNotes; //tracks separated into "lanes" of pixels
+        song.segmentSize = Math.floor(song.rawSegmentSize);
     }
     
     
-//MERGE WITH CONFIG TRACK OPTIONS HERE to ensure hide value eliminates pixel lane
-    /*
-    song.trackOptions.forEach((trackOption)=>{
-        
-    });
-    */
+    //merge in trackOptions from config file
+    if(typeof song.trackOptions != 'undefined'){
+        song.trackOptions.forEach((trackOptions)=>{
+            var found = false;
+            tracks.forEach((track)=>{
+                if(trackOptions.name == track.name){                                   
+                    if(typeof trackOptions.color != 'undefined'){
+                        var colorObject = d3.color(trackOptions.color);
+                        if(colorObject != null){
+                            track.color = colorObject;
+                        }else{
+                            console.log('Config track "'+trackOptions.name+'" for "'+song.midiFile+'" has invalid color: "'+trackOptions.color+'".');
+                        }
+                    }
 
-    //temp
-    song.trackOptions = tracks;
+                    if(trackOptions.hide){
+                        track.hide = true;
+                    }
+                    found = true;
+                }
+            });
+            if(!found){
+                console.log('Config track "'+trackOptions.name+'" not found for "'+song.midiFile+'".  Change config trackOptions names to one of these tracks with notes:');
+                tracks.forEach((track)=>{
+                    if(track.notes.length)
+                        console.log('    "'+track.name+'" has '+track.notes.length+' notes. Median pitch '+track.medianPitch+'. Instrument: "'+track.instrument+'".');
+                });
+            }
+        });
+    }
+    
+
+    song.trackObjects = tracks;
     
     var colorIndex = 0;
     var tracksWithNotes = 0;
     
-    song.trackOptions.forEach((trackOptions, i)=>{    
-        var notes = trackOptions.notes;        
-        trackOptions.numNotes = notes.length;
+    song.trackObjects.forEach((trackObject, i)=>{    
+        var notes = trackObject.notes;        
+        trackObject.numNotes = notes.length;
         
         if(notes.length){
             tracksWithNotes++;
         }
         
         //store original track order from before sorting
-        song.originalTrackOrder[trackOptions.index] = i;
+        song.originalTrackOrder[trackObject.index] = i;
         
-        //if track has notes, assign next color in config.colors
-        if(trackOptions.numNotes){
-            trackOptions.color = d3.scaleOrdinal().range(config.colors).domain(d3.range(config.colors.length))(colorIndex++%config.colors.length);
+        //if track has notes, assign next color in config.colors, unless trackOption color already specified or track hide=true
+        if(trackObject.numNotes && !trackObject.color && !trackObject.hide){
+            trackObject.color = d3.color(d3.scaleOrdinal().range(config.colors).domain(d3.range(config.colors.length))(colorIndex++%config.colors.length));
         }
 
         var range = [];
         
         if(song.tracksUseFullWidth){
-            segmentSize = Math.floor(config.numPixels/notes.length);
-            trackOptions.segmentSize = segmentSize;
-            range = d3.range(0, config.numPixels, segmentSize);
+            rawSegmentSize = config.numPixels/notes.length;
+            segmentSize = Math.floor(rawSegmentSize);
+            trackObject.segmentSize = segmentSize;
+            range = d3.range(0, config.numPixels, rawSegmentSize).map((d)=>{ return Math.round(d)});
         }else{
-            song.segmentSize = segmentSize;
-            
+
             while(range.length < notes.length){
-                var pixel = Math.round(pixelIndex*segmentSize);
+                var pixel = Math.round(pixelIndex*song.rawSegmentSize);
                 range.push(pixel);
                 pixelIndex++;
             }
         }
-        trackOptions.scale = d3.scaleOrdinal(range).domain(notes);
-        trackOptions.range = trackOptions.scale.range();
-        trackOptions.domain = trackOptions.scale.domain();
+        trackObject.scale = d3.scaleOrdinal(range).domain(notes);
+        trackObject.range = trackObject.scale.range();
+        trackObject.domain = trackObject.scale.domain();
         
     });  
 }
