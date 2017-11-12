@@ -1,7 +1,15 @@
 /*TODO
 
+fix bug cron fires every second during the minute it is triggered
+delayOffset option per song
+offColor option per song
 
 DONE
+offColor option
+initialize all pixels to default color
+
+
+COMMITED
 merge track config into trackObjects
 hide option
 add velocityDarkensColor option to config?
@@ -19,11 +27,23 @@ if(config.songs.length < 1){
     console.log('!!! Error !!!, no songs defined in config.js, config.songs is empty.');
     process.exit(0);
 }
+
+
 //default colors
 if(typeof config.colors == 'undefined' || config.colors.length == 0){
     var defaultColors = ['red', 'green', 'purple'];
     config.colors = defaultColors;
     console.log('Using default colors red, green and purple.  Override with array in config.colors using strings compatible with d3.color');
+}
+
+//offColor
+var offColor = 0; //default is 0/black/off
+if(typeof config.offColor != 'undefined'){
+    var colorObject = d3.color(config.offColor);
+    console.log('Set offColor to', colorObject);
+    if(colorObject != null){
+        offColor = rgb2Int(colorObject.r, colorObject.g, colorObject.b);
+    }
 }
 
 //colors are valid
@@ -43,6 +63,7 @@ var player = require('play-sound')(opts = {})
 var ws281x = false;
 if(process.arch == 'arm'){
     var ws281x = require('rpi-ws281x-native');
+    var child_process = require('child_process');
 }
 const CronEmitter = require('cron-emitter');
 var parser = require('cron-parser');
@@ -77,22 +98,31 @@ app.use(express.static(path.join(__dirname, 'public')));
 //state
 var currentSong = config.songs.length - 1;
 var schedulePlay = true;
+var playMidiTimeout, nextSongTimeout;
+var pixelData = new Uint32Array(config.numPixels);
 
 //init neopixels
 if(process.arch == 'arm'){
     ws281x.init(config.numPixels);
+    resetPixels();
 }
-var pixelData = new Uint32Array(config.numPixels);
+
 
 var audioPlayer; //audio player
 var midiParser = createMidiParser(); //midi parser
 midiParser.on('fileLoaded', loadedSong);
 midiParser.on('endOfFile', (event) => {
     io.emit('endOfFile', currentSong);
+    console.log('endOfFile', currentSong, config.songs[currentSong].audioFile, new Date().toLocaleTimeString());
+
     config.songs[currentSong].playing = false;
     //play next song
     if(currentSong < config.songs.length - 1){
-        setTimeout(()=>{
+        console.log('currentSong', currentSong, 'over, play next song');
+        nextSongTimeout = setTimeout(()=>{
+            var temp = currentSong+1;
+            console.log('next song is ', temp);
+//TODO don't play song if already playing
             playSong(currentSong+1);
         }, config.delayBetweenSongs);
     }
@@ -110,10 +140,18 @@ emitter.on('cron', () => {
     if(schedulePlay){
         var interval = parser.parseExpression(config.cron);
         io.emit('nextRuntime', interval.next());
+        
+        
+        
         //start playing first song, only if not already playing
         if(!midiParser.isPlaying()){
+            console.log('CRON run', new Date().toLocaleTimeString());
             playSong(0);
+        }else{
+            console.log('CRON suppressed, midi isPlaying()', new Date().toLocaleTimeString());
         }
+    }else{
+        console.log('CRON suppressed, schedulePlay is false', new Date().toLocaleTimeString());
     }
 });
 
@@ -139,10 +177,13 @@ function setupComplete(){
 }
 
 function playSong(index){
-        
+    
+    console.log('playSong('+index+')', new Date().toLocaleTimeString());
+    
     if(currentSong != index){
         //new song, change song and play
         stop();
+        console.log('set currentSong to', index);
         currentSong = index;
         isPlaybackReady = false;
         loadSong();
@@ -172,7 +213,7 @@ function loadedSong(midiParser){
             playbackReady();
         }
     }else{
-        console.log('Loaded song', currentSong, config.songs[currentSong].midiFile, Math.round(midiParser.getSongTime())+' seconds');         
+        console.log('Loaded song', currentSong, config.songs[currentSong].midiFile, Math.round(midiParser.getSongTime())+' seconds', new Date().toLocaleTimeString());
         playbackReady();
         play();
     }
@@ -202,11 +243,11 @@ function createMidiParser(){
                     var endPixel = startPixel+Math.round(song.segmentSize);
                 }
      
-                var color = 0; //0 is black/off
+                var color = offColor;
 
                 if(event.name == "Note on" && event.velocity > 0){
                     var volume = trackObject.volumeScale(event.velocity);
-                    var velocityColor = trackObject.color.darker((100-volume)/50); //darken color based on note volume
+                    var velocityColor = trackObject.color.darker((100-volume)/10); //darken color based on note volume
                     var color = rgb2Int(velocityColor.r, velocityColor.g, velocityColor.b);
                 }
                 
@@ -221,7 +262,12 @@ function setPixels(startPixel, endPixel, color){
         pixelData[x] = color;
     }
     
-    io.emit('pixelData', {pixelData:Array.from(pixelData), percentRemaining: midiParser.getSongPercentRemaining()});
+    var percentRemaining = 100;
+    if(typeof midiParser != 'undefined'){
+        percentRemaining = midiParser.getSongPercentRemaining()
+    }
+    
+    io.emit('pixelData', {pixelData:Array.from(pixelData), percentRemaining: percentRemaining});
     if(process.arch == 'arm'){
         ws281x.render(pixelData);
     }
@@ -236,15 +282,27 @@ function play(){
 
     var delay = 100;
     if(process.arch == 'arm'){
-        delay = 800;
+        delay = 600;
     }
     
-    setTimeout(function(){
+    playMidiTimeout = setTimeout(function(){
         config.songs[currentSong].midiStartAt && midiParser.skipToSeconds(config.songs[currentSong].midiStartAt);
         if(typeof config.songs[currentSong].midiTempo != 'undefined'){
             midiParser.tempo = config.songs[currentSong].midiTempo;
         }
-        midiParser.play();
+        try{
+            midiParser.play();
+        }catch(e){
+            console.log('ERROR Unable to play midi '+ config.songs[currentSong]+', already playing.  Retrying in 5 seconds', currentSong, new Date().toLocaleTimeString());
+            /*
+            stop();
+            setTimeout(()=>{
+                
+                play();
+            }, 5000);
+            */
+        }
+        
         
         //reenable schedule play and notify front end
         schedulePlay = true;
@@ -252,10 +310,8 @@ function play(){
         io.emit('nextRuntime', interval.next());
     }, delay);
     
-    
-    
     audioPlayer = player.play(config.audioPath+config.songs[currentSong].audioFile, function(err){
-      if (err && !err.killed) throw err
+      //if (err && !err.killed) throw err
     })
     console.log('Play audio', config.songs[currentSong].audioFile, new Date().toLocaleTimeString());
     io.emit('play', currentSong);
@@ -263,18 +319,30 @@ function play(){
 }
 
 function stop(){
+    console.log('stop()', new Date().toLocaleTimeString());
+    
+    playMidiTimeout && clearTimeout(playMidiTimeout);
+    nextSongTimeout && clearTimeout(nextSongTimeout);
+
     midiParser.stop();
     midiParser.skipToTick(0);
+    
+    
+    if(process.arch == 'arm'){
+        child_process.exec('kill $(pgrep omxplayer)');
+    }
     if(audioPlayer){
         audioPlayer.kill();
     }
-    setPixels(0, config.numPixels-1, 0); //set all pixels black/off
+    resetPixels();
     console.log('Stop');
     io.emit('stop', currentSong);
     config.songs[currentSong].playing = false;
 }
 
-
+function resetPixels(){
+    setPixels(0, config.numPixels-1, offColor); //set all pixels black/off
+}
 
 function analyzeMidi(player, songIndex){
 
