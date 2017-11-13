@@ -1,7 +1,7 @@
 var config = {
     port: 3000,
     numPixels: 144,
-    cron: '* */10 * * * *',
+    cron: '0 */10 * * * *',
     delayBetweenSongs: 5000,
     offColor: '#100000',
     colors: ['red', 'green', 'purple'], //optional, colors roll over if number of tracks exceeds number of colors

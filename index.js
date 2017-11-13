@@ -1,8 +1,15 @@
 /*TODO
-
+check if timeouts are running before cron starts playlist
 fix bug cron fires every second during the minute it is triggered
 delayOffset option per song
 offColor option per song
+add volume control
+send current song index with every pixel payload
+fix bash: cannot create temp file for here-document: Read-only file system
+
+
+used "--unsafe-perm" with npm install to install neopixel library
+https://github.com/nodejs/node-gyp/issues/454#issuecomment-315691803
 
 DONE
 offColor option
