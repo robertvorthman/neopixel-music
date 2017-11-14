@@ -10,20 +10,12 @@ var config = {
     songs: [
         {
             audioFile: "nutcracker - march of the toy soldiers.mp3",
-            midiFile: "nutcracker - march of the toy soldiers edit 4.mid",
+            midiFile: "nutcracker - march of the toy soldiers edit 5.mid",
             tracksUseFullWidth: true
         },
         {
-            audioFile: "nut3trep2.mp3",
+            audioFile: "Nutcracker - Russian Dance.mp3",
             midiFile: "nut3trep2.mid",
-        },
-        {
-            audioFile: "nut5chin2.mp3",
-            midiFile: "nut5chin2.mid",
-        },
-        {
-            audioFile: "nut6reed2.mp3",
-            midiFile: "nut6reed2.mid",
         },
         {
             audioFile: "Sleigh Ride.mp3",
@@ -51,14 +43,47 @@ var config = {
                     color: "purple"
                 }
             ]
-        },
+        },/*,
         {
-            audioFile: "Jingle Bells.mp3",
-            midiFile: "Jingle Bells.mid",
+            audioFile: "tchaikovsky_nutcracker_suite_sugarplum_71a_3_(c)kirschbaum.aiff",
+            midiFile: "dancy of the sugar plum fairy.mid",
+            midiTempo: 50,
+            trackOptions: [
+                {
+                    name: "Track3",
+                    color: 'blue',
+                },
+                {
+                    name: "Track2",
+                    color: "purple"
+                }
+            ]
         },
+        */
         {
-            audioFile: "Ding Dong Merrily on High.mp3",
+            audioFile: "dingdong.aiff",
             midiFile: "dingdong.mid",
+            tracksUseFullWidth: true,
+            trackOptions: [
+                {
+                    name: "Track1",
+                    hide: true
+                },
+                {
+                    name: "Track2"
+                },
+                {
+                    name: "Track3"
+                },
+                {
+                    name: "Track4",
+                    hide: true
+                },
+                {
+                    name: "Track5",
+                    hide: true
+                }
+            ]
         },
         {
             audioFile: "Wizards In Winter.mp3",
