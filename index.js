@@ -1,4 +1,13 @@
 /*TODO
+
+enforce minimum brightness/velocity to what light strip can display
+option to invert rbg to strip but not web
+use https://www.npmjs.com/package/omxplayer-controll
+
+delayOffset option per song
+offColor option per song
+rewrite front end to handle receiving current song every payload
+
 check if timeouts are running before cron starts playlist
 fix bug cron fires every second during the minute it is triggered
 delayOffset option per song
@@ -254,6 +263,7 @@ function createMidiParser(){
 
                 if(event.name == "Note on" && event.velocity > 0){
                     var volume = trackObject.volumeScale(event.velocity);
+                    //if(process.arch
                     var velocityColor = trackObject.color.darker((100-volume)/10); //darken color based on note volume
                     var color = rgb2Int(velocityColor.r, velocityColor.g, velocityColor.b);
                 }
@@ -287,7 +297,7 @@ function play(){
         return;
     }
 
-    var delay = 100;
+    var delay = 30;
     if(process.arch == 'arm'){
         delay = 600;
     }
@@ -430,6 +440,9 @@ function analyzeMidi(player, songIndex){
         //tracks are separated into lanes, guaranteed not to overlap.  all notes have same segment size
         song.rawSegmentSize = config.numPixels/song.totalNotes; //tracks separated into "lanes" of pixels
         song.segmentSize = Math.floor(song.rawSegmentSize);
+        if(song.segmentSize < 1){
+            song.segmentSize = 1;
+        }
     }
     
     

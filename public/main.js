@@ -241,7 +241,9 @@ function bindPixelData(data) {
         .attr('width', pixelSize)
         .attr('height', pixelTotalSize)
         .attr('fillStyle', function(d, i) {
-            return '#'+decimalToHex(d);;
+            var hex = decimalToHex(d);
+            var colorObject = d3.color('#'+hex).brighter(3);
+            return colorObject.toString();
         });
 
 }

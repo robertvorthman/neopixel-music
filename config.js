@@ -9,7 +9,23 @@ var config = {
     pitchSort: 'ascending', //defaults to ascending, tracks with higher pitch median note appear at end of pixel strip
     songs: [
         {
-            audioFile: "Sleigh Ride.wav",
+            audioFile: "nutcracker - march of the toy soldiers.aiff",
+            midiFile: "nutcracker - march of the toy soldiers.mid",
+        },
+        {
+            audioFile: "nut3trep2.aiff",
+            midiFile: "nut3trep2.mid",
+        },
+        {
+            audioFile: "nut5chin2.aiff",
+            midiFile: "nut5chin2.mid",
+        },
+        {
+            audioFile: "nut6reed2.aiff",
+            midiFile: "nut6reed2.mid",
+        },
+        {
+            audioFile: "Sleigh Ride.mp3",
             midiFile: "sleigh.mid",
             trackOptions: [
                 {
@@ -22,7 +38,7 @@ var config = {
             ]
         },
         {
-            audioFile: "Dance of the Sugar Plum Fairies.wav",
+            audioFile: "Dance of the Sugar Plum Fairies.mp3",
             midiFile: "dancy of the sugar plum fairy.mid",
             trackOptions: [
                 {
@@ -36,15 +52,15 @@ var config = {
             ]
         },
         {
-            audioFile: "Jingle Bells.wav",
+            audioFile: "Jingle Bells.mp3",
             midiFile: "Jingle Bells.mid",
         },
         {
-            audioFile: "Ding Dong Merrily on High.wav",
+            audioFile: "Ding Dong Merrily on High.mp3",
             midiFile: "dingdong.mid",
         },
         {
-            audioFile: "Wizards In Winter.wav",
+            audioFile: "Wizards In Winter.mp3",
             midiFile: "wizards edit 5.mid",
             midiTempo: 148.3,
             tracksUseFullWidth: true
