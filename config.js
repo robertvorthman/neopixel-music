@@ -1,6 +1,6 @@
 var config = {
     port: 3000,
-    numPixels: 144,
+    numPixels: 100,
     cron: '0 */10 * * * *',
     delayBetweenSongs: 5000,
     offColor: '#100000',
@@ -9,19 +9,20 @@ var config = {
     pitchSort: 'ascending', //defaults to ascending, tracks with higher pitch median note appear at end of pixel strip
     songs: [
         {
-            audioFile: "nutcracker - march of the toy soldiers.aiff",
-            midiFile: "nutcracker - march of the toy soldiers.mid",
+            audioFile: "nutcracker - march of the toy soldiers.mp3",
+            midiFile: "nutcracker - march of the toy soldiers edit 4.mid",
+            tracksUseFullWidth: true
         },
         {
-            audioFile: "nut3trep2.aiff",
+            audioFile: "nut3trep2.mp3",
             midiFile: "nut3trep2.mid",
         },
         {
-            audioFile: "nut5chin2.aiff",
+            audioFile: "nut5chin2.mp3",
             midiFile: "nut5chin2.mid",
         },
         {
-            audioFile: "nut6reed2.aiff",
+            audioFile: "nut6reed2.mp3",
             midiFile: "nut6reed2.mid",
         },
         {

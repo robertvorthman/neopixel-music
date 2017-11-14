@@ -1,26 +1,10 @@
 /*TODO
 
-enforce minimum brightness/velocity to what light strip can display
-option to invert rbg to strip but not web
-use https://www.npmjs.com/package/omxplayer-controll
-
 delayOffset option per song
 offColor option per song
-rewrite front end to handle receiving current song every payload
-
-check if timeouts are running before cron starts playlist
-fix bug cron fires every second during the minute it is triggered
-delayOffset option per song
-offColor option per song
-add volume control
-send current song index with every pixel payload
-fix bash: cannot create temp file for here-document: Read-only file system
-
-
-used "--unsafe-perm" with npm install to install neopixel library
-https://github.com/nodejs/node-gyp/issues/454#issuecomment-315691803
 
 DONE
+fix bug cron fires every second during the minute it is triggered
 offColor option
 initialize all pixels to default color
 
@@ -263,9 +247,11 @@ function createMidiParser(){
 
                 if(event.name == "Note on" && event.velocity > 0){
                     var volume = trackObject.volumeScale(event.velocity);
-                    //if(process.arch
+                    if(volume < 50) volume = 50; //enforce minimum brightness
                     var velocityColor = trackObject.color.darker((100-volume)/10); //darken color based on note volume
                     var color = rgb2Int(velocityColor.r, velocityColor.g, velocityColor.b);
+//temp                    
+                    var color = rgb2Int(velocityColor.r, velocityColor.b, velocityColor.g);
                 }
                 
                 setPixels(startPixel, endPixel, color);
@@ -297,9 +283,9 @@ function play(){
         return;
     }
 
-    var delay = 30;
+    var delay = 100;
     if(process.arch == 'arm'){
-        delay = 600;
+        delay = 300;
     }
     
     playMidiTimeout = setTimeout(function(){
@@ -327,7 +313,7 @@ function play(){
         io.emit('nextRuntime', interval.next());
     }, delay);
     
-    audioPlayer = player.play(config.audioPath+config.songs[currentSong].audioFile, function(err){
+    audioPlayer = player.play(config.audioPath+config.songs[currentSong].audioFile, { omxplayer: ['-o', 'alsa' ]}, function(err){
       //if (err && !err.killed) throw err
     })
     console.log('Play audio', config.songs[currentSong].audioFile, new Date().toLocaleTimeString());
