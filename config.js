@@ -1,21 +1,18 @@
 var config = {
-    port: 3000,
     numPixels: 100,
     cron: '0 */10 * * * *',
-    delayBetweenSongs: 5000,
-    offColor: '#100000',
-    colors: ['red', 'green', 'purple'], //optional, colors roll over if number of tracks exceeds number of colors
     audioPath: 'audio/',
-    pitchSort: 'ascending', //defaults to ascending, tracks with higher pitch median note appear at end of pixel strip
+    offColor: '#100000',
+    colorOrder: 'RBG',
     songs: [
         {
-            audioFile: "nutcracker - march of the toy soldiers.mp3",
-            midiFile: "nutcracker - march of the toy soldiers edit 5.mid",
+            audioFile: "Nutcracker - March of the Toy Soldiers.mp3",
+            midiFile: "nutcracker - march of the toy soldiers edit 6.mid",
             tracksUseFullWidth: true
         },
         {
             audioFile: "Nutcracker - Russian Dance.mp3",
-            midiFile: "nut3trep2.mid",
+            midiFile: "Nutcracker - Russian Dance.mid",
         },
         {
             audioFile: "Sleigh Ride.mp3",
@@ -31,23 +28,9 @@ var config = {
             ]
         },
         {
-            audioFile: "Dance of the Sugar Plum Fairies.mp3",
-            midiFile: "dancy of the sugar plum fairy.mid",
-            trackOptions: [
-                {
-                    name: "Track3",
-                    color: 'blue',
-                },
-                {
-                    name: "Track2",
-                    color: "purple"
-                }
-            ]
-        },/*,
-        {
-            audioFile: "tchaikovsky_nutcracker_suite_sugarplum_71a_3_(c)kirschbaum.aiff",
-            midiFile: "dancy of the sugar plum fairy.mid",
-            midiTempo: 50,
+            audioFile: "Nutcracker - Dance of the Sugar Plum Fairies.mp3",
+            midiFile: "Nutcracker - Dance of the Sugar Plum Fairies.mid",
+            offColor: 'black',
             trackOptions: [
                 {
                     name: "Track3",
@@ -59,10 +42,9 @@ var config = {
                 }
             ]
         },
-        */
         {
-            audioFile: "dingdong.aiff",
-            midiFile: "dingdong.mid",
+            audioFile: "Ding Dong Merrily on High.mp3",
+            midiFile: "Ding Dong Merrily on High.mid",
             tracksUseFullWidth: true,
             trackOptions: [
                 {

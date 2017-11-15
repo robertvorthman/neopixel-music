@@ -1,9 +1,17 @@
 /*TODO
 
+
 delayOffset option per song
-offColor option per song
+use https://www.npmjs.com/package/omxplayer-controll
+rewrite front end to handle receiving current song every payload
+check if timeouts are running before cron starts playlist
 
 DONE
+fix bug with last pixel always black
+offColor option per song
+enforce minimum brightness/velocity to what light strip can display
+RGB order option
+
 fix bug cron fires every second during the minute it is triggered
 offColor option
 initialize all pixels to default color
@@ -16,10 +24,23 @@ add velocityDarkensColor option to config?
 validate if color config is valid colors d3.color(d) != null
 */
 
-//config file
-var config = require('./config.js');
-//d3
-var d3 = require("d3");
+//default options
+var config = {
+    port: 8080,
+    colorOrder: 'RGB',
+    audioPath: '',
+    cron: '0 * */1 * * *',
+    delayBetweenSongs: 5000,
+    offColor: 'pink',
+    colors: ['red', 'green', 'purple'],
+    pitchSort: 'ascending',
+    minVelocity: 50, //ensures quiet notes still bright enough to illuminate pixel
+    midiDelayX86: 100,
+    midiDelayARM: 350
+};
+
+//override default options with config file
+config = Object.assign(config, require('./config.js'));
 
 //validate config file
 //has songs
@@ -28,6 +49,8 @@ if(config.songs.length < 1){
     process.exit(0);
 }
 
+//d3
+var d3 = require("d3");
 
 //default colors
 if(typeof config.colors == 'undefined' || config.colors.length == 0){
@@ -36,22 +59,22 @@ if(typeof config.colors == 'undefined' || config.colors.length == 0){
     console.log('Using default colors red, green and purple.  Override with array in config.colors using strings compatible with d3.color');
 }
 
-//offColor
-var offColor = 0; //default is 0/black/off
-if(typeof config.offColor != 'undefined'){
-    var colorObject = d3.color(config.offColor);
-    console.log('Set offColor to', colorObject);
-    if(colorObject != null){
-        offColor = rgb2Int(colorObject.r, colorObject.g, colorObject.b);
-    }
-}
-
 //colors are valid
 config.colors.forEach((color, i)=>{
     var colorObject = d3.color(color);
     if(colorObject == null){
         console.log('config.color "'+color+'" is not a valid color.  Defaulting to white');
         config.colors.splice(i, 1, 'white');
+    }
+});
+
+config.offColor = d3.color(config.offColor);
+
+//set song specific off color
+config.songs.forEach((song)=>{
+    song.offColor = d3.color(song.offColor);
+    if(!song.offColor){
+        song.offColor = d3.color(config.offColor);
     }
 });
 
@@ -243,15 +266,12 @@ function createMidiParser(){
                     var endPixel = startPixel+Math.round(song.segmentSize);
                 }
      
-                var color = offColor;
+                var color = song.offColor;
 
                 if(event.name == "Note on" && event.velocity > 0){
                     var volume = trackObject.volumeScale(event.velocity);
-                    if(volume < 50) volume = 50; //enforce minimum brightness
-                    var velocityColor = trackObject.color.darker((100-volume)/10); //darken color based on note volume
-                    var color = rgb2Int(velocityColor.r, velocityColor.g, velocityColor.b);
-//temp                    
-                    var color = rgb2Int(velocityColor.r, velocityColor.b, velocityColor.g);
+                    if(volume < config.minVelocity) volume = config.minVelocity; //enforce minimum brightness
+                    color = trackObject.color.darker((100-volume)/10); //darken color based on note volume
                 }
                 
                 setPixels(startPixel, endPixel, color);
@@ -262,7 +282,7 @@ function createMidiParser(){
 
 function setPixels(startPixel, endPixel, color){
     for(var x = startPixel; x < endPixel; x++){
-        pixelData[x] = color;
+        pixelData[x] = colorObjectToInt(color);
     }
     
     var percentRemaining = 100;
@@ -283,9 +303,9 @@ function play(){
         return;
     }
 
-    var delay = 100;
+    var delay = config.midiDelayX86;
     if(process.arch == 'arm'){
-        delay = 300;
+        delay = config.midiDelayARM;
     }
     
     playMidiTimeout = setTimeout(function(){
@@ -296,14 +316,7 @@ function play(){
         try{
             midiParser.play();
         }catch(e){
-            console.log('ERROR Unable to play midi '+ config.songs[currentSong]+', already playing.  Retrying in 5 seconds', currentSong, new Date().toLocaleTimeString());
-            /*
-            stop();
-            setTimeout(()=>{
-                
-                play();
-            }, 5000);
-            */
+            console.log('ERROR Unable to play midi '+ config.songs[currentSong]+', already playing.', new Date().toLocaleTimeString());
         }
         
         
@@ -319,6 +332,9 @@ function play(){
     console.log('Play audio', config.songs[currentSong].audioFile, new Date().toLocaleTimeString());
     io.emit('play', currentSong);
     config.songs[currentSong].playing = true; 
+    
+    //set pixels
+    setPixels(0, config.numPixels, config.songs[currentSong].offColor);
 }
 
 function stop(){
@@ -344,7 +360,7 @@ function stop(){
 }
 
 function resetPixels(){
-    setPixels(0, config.numPixels-1, offColor); //set all pixels black/off
+    setPixels(0, config.numPixels, config.offColor); //set all pixels black/off
 }
 
 function analyzeMidi(player, songIndex){
@@ -505,6 +521,10 @@ function analyzeMidi(player, songIndex){
         trackObject.domain = trackObject.scale.domain();
         
     });  
+}
+
+function colorObjectToInt(colorObject){
+    return rgb2Int(colorObject[config.colorOrder[0].toLowerCase()],colorObject[config.colorOrder[1].toLowerCase()],colorObject[config.colorOrder[2].toLowerCase()]);
 }
 
 function rgb2Int(r, g, b) {

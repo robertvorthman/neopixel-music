@@ -241,8 +241,9 @@ function bindPixelData(data) {
         .attr('width', pixelSize)
         .attr('height', pixelTotalSize)
         .attr('fillStyle', function(d, i) {
-            var hex = decimalToHex(d);
-            var colorObject = d3.color('#'+hex).brighter(3);
+            var hex = d3.color('#'+decimalToHex(d));
+            var colorObject = d3.color('rgb('+hex[config.colorOrder[0].toLowerCase()]+','+hex[config.colorOrder[1].toLowerCase()]+','+hex[config.colorOrder[2].toLowerCase()]+')');
+            var colorObject = colorObject.brighter(3);
             return colorObject.toString();
         });
 
@@ -293,6 +294,6 @@ function tick(){
 
 function decimalToHex(d) {
   var hex = Number(d).toString(16);
-  hex = "000000".substr(0, 6 - hex.length) + hex; 
+  hex = "000000".substr(0, 6 - hex.length) + hex;
   return hex;
 }
