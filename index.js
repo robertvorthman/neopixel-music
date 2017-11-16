@@ -4,9 +4,12 @@
 delayOffset option per song
 use https://www.npmjs.com/package/omxplayer-controll
 rewrite front end to handle receiving current song every payload
-check if timeouts are running before cron starts playlist
+
 
 DONE
+startPixel offset
+check if timeouts are running before cron starts playlist
+
 fix bug with last pixel always black
 offColor option per song
 enforce minimum brightness/velocity to what light strip can display
@@ -28,6 +31,7 @@ validate if color config is valid colors d3.color(d) != null
 var config = {
     port: 8080,
     colorOrder: 'RGB',
+    startPixel: 0,
     audioPath: '',
     cron: '0 * */1 * * *',
     delayBetweenSongs: 5000,
@@ -122,11 +126,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 var currentSong = config.songs.length - 1;
 var schedulePlay = true;
 var playMidiTimeout, nextSongTimeout;
-var pixelData = new Uint32Array(config.numPixels);
+var playMidiWaiting = false, nextSongWaiting = false;
+var totalPixels = config.startPixel + config.numPixels;
+var pixelData = new Uint32Array(config.startPixel + config.numPixels);
 
 //init neopixels
 if(process.arch == 'arm'){
-    ws281x.init(config.numPixels, {dmaNum: 10}); //dmaNum 10 fixes read-only file system errors
+    ws281x.init(pixelData.length, {dmaNum: 10}); //dmaNum 10 fixes read-only file system errors
     resetPixels();
 }
 
@@ -143,11 +149,13 @@ midiParser.on('endOfFile', (event) => {
     if(currentSong < config.songs.length - 1){
         console.log('currentSong', currentSong, 'over, play next song');
         nextSongTimeout = setTimeout(()=>{
+            nextSongWaiting = false;
             var temp = currentSong+1;
             console.log('next song is ', temp);
 //TODO don't play song if already playing
             playSong(currentSong+1);
         }, config.delayBetweenSongs);
+        nextSongWaiting = true;
     }
 });
 
@@ -164,14 +172,14 @@ emitter.on('cron', () => {
         var interval = parser.parseExpression(config.cron);
         io.emit('nextRuntime', interval.next());
         
-        
-        
-        //start playing first song, only if not already playing
-        if(!midiParser.isPlaying()){
-            console.log('CRON run', new Date().toLocaleTimeString());
-            playSong(0);
+        if(playMidiWaiting || nextSongWaiting){
+            console.log('CRON suppressed, playMidiWaiting || nextSongWaiting', playMidiWaiting, nextSongWaiting, new Date().toLocaleTimeString()); 
+        } else if(midiParser.isPlaying()){
+            console.log('CRON suppressed, midi isPlaying()', new Date().toLocaleTimeString()); 
         }else{
-            console.log('CRON suppressed, midi isPlaying()', new Date().toLocaleTimeString());
+            console.log('CRON run', new Date().toLocaleTimeString());
+            //start playing first song, only if not already playing
+            playSong(0);
         }
     }else{
         console.log('CRON suppressed, schedulePlay is false', new Date().toLocaleTimeString());
@@ -281,6 +289,7 @@ function createMidiParser(){
 }
 
 function setPixels(startPixel, endPixel, color){
+
     for(var x = startPixel; x < endPixel; x++){
         pixelData[x] = colorObjectToInt(color);
     }
@@ -318,13 +327,14 @@ function play(){
         }catch(e){
             console.log('ERROR Unable to play midi '+ config.songs[currentSong]+', already playing.', new Date().toLocaleTimeString());
         }
-        
+        playMidiWaiting = false;
         
         //reenable schedule play and notify front end
         schedulePlay = true;
         var interval = parser.parseExpression(config.cron);
         io.emit('nextRuntime', interval.next());
     }, delay);
+    playMidiWaiting = true;
     
     audioPlayer = player.play(config.audioPath+config.songs[currentSong].audioFile, { omxplayer: ['-o', 'alsa' ]}, function(err){
       //if (err && !err.killed) throw err
@@ -335,7 +345,7 @@ function play(){
     config.songs[currentSong].playing = true; 
     
     //set pixels
-    setPixels(0, config.numPixels, config.songs[currentSong].offColor);
+    setPixels(config.startPixel, config.startPixel+config.numPixels, config.songs[currentSong].offColor);
 }
 
 function stop(){
@@ -361,7 +371,7 @@ function stop(){
 }
 
 function resetPixels(){
-    setPixels(0, config.numPixels, config.offColor); //set all pixels black/off
+    setPixels(config.startPixel, config.startPixel+config.numPixels, config.offColor); //set all pixels black/off
 }
 
 function analyzeMidi(player, songIndex){
@@ -433,7 +443,7 @@ function analyzeMidi(player, songIndex){
     song.originalTrackOrder = [];
 
     //map the domain of possible tract notes to the entire neopixel segment range
-    var pixelIndex = 0;    
+    var pixelIndex = config.startPixel;    
     
     var rawSegmentSize, segmentSize;
     if(song.tracksUseFullWidth){
@@ -479,21 +489,15 @@ function analyzeMidi(player, songIndex){
             }
         });
     }
-    
-
     song.trackObjects = tracks;
     
+
     var colorIndex = 0;
-    var tracksWithNotes = 0;
     
     song.trackObjects.forEach((trackObject, i)=>{    
         var notes = trackObject.notes;        
         trackObject.numNotes = notes.length;
-        
-        if(notes.length){
-            tracksWithNotes++;
-        }
-        
+
         //store original track order from before sorting
         song.originalTrackOrder[trackObject.index] = i;
         
@@ -508,15 +512,20 @@ function analyzeMidi(player, songIndex){
             rawSegmentSize = config.numPixels/notes.length;
             segmentSize = Math.floor(rawSegmentSize);
             trackObject.segmentSize = segmentSize;
-            range = d3.range(0, config.numPixels, rawSegmentSize).map((d)=>{ return Math.round(d)});
-        }else{
+            range = d3.range(config.startPixel, config.startPixel+config.numPixels, rawSegmentSize).map((d)=>{ return Math.round(d)});
+        }else if(!trackObject.hide){
 
             while(range.length < notes.length){
-                var pixel = Math.round(pixelIndex*song.rawSegmentSize);
+                var pixel = Math.round((pixelIndex-config.startPixel)*song.rawSegmentSize)+config.startPixel;
                 range.push(pixel);
                 pixelIndex++;
             }
         }
+        
+        if(config.pitchSort == 'descending'){
+            range.reverse();
+        }
+        
         trackObject.scale = d3.scaleOrdinal(range).domain(notes);
         trackObject.range = trackObject.scale.range();
         trackObject.domain = trackObject.scale.domain();

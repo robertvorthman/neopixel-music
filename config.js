@@ -1,9 +1,11 @@
 var config = {
-    numPixels: 100,
+    numPixels: 70,
+    startPixel: 30,
     cron: '0 */10 * * * *',
     audioPath: 'audio/',
     offColor: '#100000',
     colorOrder: 'RBG',
+    //pitchSort: 'descending',
     songs: [
         {
             audioFile: "Nutcracker - March of the Toy Soldiers.mp3",
@@ -45,17 +47,10 @@ var config = {
         {
             audioFile: "Ding Dong Merrily on High.mp3",
             midiFile: "Ding Dong Merrily on High.mid",
-            tracksUseFullWidth: true,
             trackOptions: [
                 {
                     name: "Track1",
                     hide: true
-                },
-                {
-                    name: "Track2"
-                },
-                {
-                    name: "Track3"
                 },
                 {
                     name: "Track4",

@@ -35,7 +35,7 @@ socket.on('config', function(d){
     console.log('config', config);
     nextRuntime = new Date(config.nextRuntime);
     buildPlaylist(config.songs);
-    pixelData = preparePixelData(config.numPixels);
+    pixelData = preparePixelData(config.startPixel+config.numPixels);
     createCanvas('#pixels');
     bindPixelData(pixelData);
     drawPixels();
