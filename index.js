@@ -428,9 +428,7 @@ function analyzeMidi(player, songIndex){
     });
     
     //calculate track stats
-    song.totalNotes = 0; //total number of unique notes in each track, not total number of notes played per song
     trackNotes.forEach((notes, i)=>{
-        song.totalNotes += notes.length;
         tracks[i].medianPitch = (notes.length) ? d3.median(notes) : 0; //median pitch
         tracks[i].notes = notes;
     });
@@ -442,23 +440,6 @@ function analyzeMidi(player, songIndex){
     });
     song.originalTrackOrder = [];
 
-    //map the domain of possible tract notes to the entire neopixel segment range
-    var pixelIndex = config.startPixel;    
-    
-    var rawSegmentSize, segmentSize;
-    if(song.tracksUseFullWidth){
-        //PIXELS CAN OVERLAP IF MULTIPLE TRACKS PLAY NOTES SIMULTANEOUSLY
-        //tracks with few notes have very wide pixel segments, tracks with many notes have narrow segments
-    }else{
-        //tracks are separated into lanes, guaranteed not to overlap.  all notes have same segment size
-        song.rawSegmentSize = config.numPixels/song.totalNotes; //tracks separated into "lanes" of pixels
-        song.segmentSize = Math.floor(song.rawSegmentSize);
-        if(song.segmentSize < 1){
-            song.segmentSize = 1;
-        }
-    }
-    
-    
     //merge in trackOptions from config file
     if(typeof song.trackOptions != 'undefined'){
         song.trackOptions.forEach((trackOptions)=>{
@@ -489,11 +470,33 @@ function analyzeMidi(player, songIndex){
             }
         });
     }
+    
+    song.totalNotes = 0;
+    tracks.forEach((track)=>{
+        if(!track.hide){
+            song.totalNotes += track.notes.length;
+        }
+    });
+    
+    //calculate pixel width of each note
+    var rawSegmentSize, segmentSize;
+    if(song.tracksUseFullWidth){
+        //PIXELS CAN OVERLAP IF MULTIPLE TRACKS PLAY NOTES SIMULTANEOUSLY
+        //tracks with few notes have very wide pixel segments, tracks with many notes have narrow segments
+    }else{
+        //tracks are separated into lanes, guaranteed not to overlap.  all notes have same segment size
+        song.rawSegmentSize = config.numPixels/song.totalNotes; //tracks separated into "lanes" of pixels
+        song.segmentSize = Math.floor(song.rawSegmentSize);
+        if(song.segmentSize < 1){
+            song.segmentSize = 1;
+        }
+    }
+    
+    var pixelIndex = config.startPixel;    
+    var colorIndex = 0;
     song.trackObjects = tracks;
     
-
-    var colorIndex = 0;
-    
+    //assign track color and pixel range
     song.trackObjects.forEach((trackObject, i)=>{    
         var notes = trackObject.notes;        
         trackObject.numNotes = notes.length;
