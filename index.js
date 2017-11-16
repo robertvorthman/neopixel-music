@@ -126,7 +126,7 @@ var pixelData = new Uint32Array(config.numPixels);
 
 //init neopixels
 if(process.arch == 'arm'){
-    ws281x.init(config.numPixels);
+    ws281x.init(config.numPixels, {dmaNum: 10}); //dmaNum 10 fixes read-only file system errors
     resetPixels();
 }
 
@@ -328,7 +328,8 @@ function play(){
     
     audioPlayer = player.play(config.audioPath+config.songs[currentSong].audioFile, { omxplayer: ['-o', 'alsa' ]}, function(err){
       //if (err && !err.killed) throw err
-    })
+    });
+    
     console.log('Play audio', config.songs[currentSong].audioFile, new Date().toLocaleTimeString());
     io.emit('play', currentSong);
     config.songs[currentSong].playing = true; 
