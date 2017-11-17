@@ -45,6 +45,18 @@ socket.on('pixelData', function(data) {
     pixelData = data.pixelData;
     bindPixelData(pixelData);
     drawPixels();
+    
+    //if client currentSong is different from server currentSong
+    if(typeof data.currentSong != 'undefined' && currentSong != data.currentSong){
+        currentSong = data.currentSong;
+        config.songs.forEach(function(song, i){
+            song.playing = (i == currentSong) ? true : false;
+            song.percentRemaining = (i == currentSong) ? data.percentRemaining : 100;
+        });
+        updateListItems();
+    } 
+    
+    //update remaining time
     if(typeof currentSong != 'undefined' && data.percentRemaining >= 0){
         config.songs[currentSong].percentRemaining = data.percentRemaining;
         updateRemainingTime();
@@ -92,11 +104,16 @@ function buildPlaylist(songs){
     d3.select('#playlist > svg')
         .attr('height', rowHeight*songs.length)
         .attr('width', bodyWidth);
-
+    
+    //delete old list items if server restarted while client open
+    playlist.selectAll('g').remove();
+    
     listItems = playlist.selectAll('g')
         .data(songs)
         .enter()
-        .append('g')
+        .append('g');
+    
+    listItems
         .classed('playing', getListItemClass)
         .attr('transform', function(d, i) {        
             return "translate(0," + (((i+1) * rowHeight) - (rowHeight/2)) + ")";
@@ -136,17 +153,18 @@ function buildPlaylist(songs){
         .append('text')
         .attr('x', 20)
         .text(function(d){
-            return d.audioFile.replace(/\.[^/.]+$/, "");
+            var fileName = d.audioFile.replace(/\.[^/.]+$/, ""); //remove file extension
+            return fileName;
         });
     
     //update playlist total duration
     var totalSeconds = d3.sum(songs, function(d){return d.duration});
         
     d3.select('#playlistDuration').text(d3.timeFormat('%-M:%S')(totalSeconds*1000));
-    
 }
 
 function updateListItems(){
+
     //toggle play/stop button
     listItems.selectAll('.play-stop-button')
         .text(getListItemButton);
@@ -163,10 +181,11 @@ function updateListItems(){
         })
         .attr('x', function(d){
             return 0;
-        });
+        });    
 }
 
 function updateRemainingTime(){
+        
     listItems
         .filter(function(d,i){
             return i == currentSong;
@@ -180,7 +199,7 @@ function updateRemainingTime(){
         });
 }
 
-function getListItemButton(d, i){
+function getListItemButton(d, i){    
     if(d.playing){
         return "◼";
     }

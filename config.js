@@ -1,6 +1,5 @@
 var config = {
-    numPixels: 70,
-    startPixel: 30,
+    numPixels: 100,
     cron: '0 */10 * * * *',
     audioPath: 'audio/',
     offColor: '#100000',
@@ -66,7 +65,8 @@ var config = {
             audioFile: "Wizards In Winter.mp3",
             midiFile: "wizards edit 5.mid",
             midiTempo: 148.3,
-            tracksUseFullWidth: true
+            tracksUseFullWidth: true,
+            delay: 200
         }
     ]
 };

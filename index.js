@@ -1,12 +1,14 @@
 /*TODO
 
 
-delayOffset option per song
+
 use https://www.npmjs.com/package/omxplayer-controll
 rewrite front end to handle receiving current song every payload
 
 
 DONE
+delayOffset option per song
+
 startPixel offset
 check if timeouts are running before cron starts playlist
 
@@ -150,9 +152,6 @@ midiParser.on('endOfFile', (event) => {
         console.log('currentSong', currentSong, 'over, play next song');
         nextSongTimeout = setTimeout(()=>{
             nextSongWaiting = false;
-            var temp = currentSong+1;
-            console.log('next song is ', temp);
-//TODO don't play song if already playing
             playSong(currentSong+1);
         }, config.delayBetweenSongs);
         nextSongWaiting = true;
@@ -256,6 +255,8 @@ function playbackReady(){
 
 function disableSchedulePlay(){
     schedulePlay = false;
+    playMidiTimeout && clearTimeout(playMidiTimeout);
+    nextSongTimeout && clearTimeout(nextSongTimeout);
 }
 
 // Initialize player and register event handler
@@ -299,7 +300,11 @@ function setPixels(startPixel, endPixel, color){
         percentRemaining = midiParser.getSongPercentRemaining()
     }
     
-    io.emit('pixelData', {pixelData:Array.from(pixelData), percentRemaining: percentRemaining});
+    io.emit('pixelData', {
+        pixelData:Array.from(pixelData),
+        currentSong: currentSong,
+        percentRemaining: percentRemaining
+    });
     if(process.arch == 'arm'){
         ws281x.render(pixelData);
     }
@@ -315,6 +320,14 @@ function play(){
     var delay = config.midiDelayX86;
     if(process.arch == 'arm'){
         delay = config.midiDelayARM;
+    }
+    
+    var songDelay = parseInt(config.songs[currentSong].delay);
+    if(!isNaN(songDelay)){
+        delay += songDelay;
+    }
+    if(delay < 0){
+        delay = 0;
     }
     
     playMidiTimeout = setTimeout(function(){
