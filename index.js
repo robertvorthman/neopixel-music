@@ -349,7 +349,15 @@ function play(){
     }, delay);
     playMidiWaiting = true;
     
-    audioPlayer = player.play(config.audioPath+config.songs[currentSong].audioFile, { omxplayer: ['-o', 'alsa' ]}, function(err){
+    
+    //range from 0 to -6000 millibels
+    var omxVolumeScale = d3.scaleLinear().range([-6000, 0]).clamp(true);
+    var volume = omxVolumeScale(1);
+    if(!isNaN(config.songs[currentSong].volume)){
+        volume = omxVolumeScale(config.songs[currentSong].volume);
+    }
+    
+    audioPlayer = player.play(config.audioPath+config.songs[currentSong].audioFile, { omxplayer: ['-o', 'alsa', '--vol', volume ]}, function(err){
       //if (err && !err.killed) throw err
     });
     
